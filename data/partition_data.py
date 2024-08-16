@@ -17,7 +17,7 @@ from utils.heterogeneity import heterogeneity
 
 ALL_DOMAINS = {
     "pacs": ["art_painting", "cartoon", "photo", "sketch"],
-    "vlcs": ["caltech", "labelme", "pascal", "voc"],
+    "vlcs": ["caltech", "labelme", "sun", "voc"],
     "office_home": ["art", "clipart", "product", "realworld"],
 }
 
@@ -29,11 +29,11 @@ def parse_arguments():
     parser.add_argument(
         "--dataset",
         type=str,
-        default="pacs",
+        default="office_home",
         choices=["pacs", "vlcs", "office_home"],
     )
+    parser.add_argument("--test_domain", type=str, default="art", help="Test domain")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
-    parser.add_argument("--test_domain", type=str, default="cartoon", help="Test domain")
     parser.add_argument(
         "--num_clients_per_domain",
         type=int,
@@ -41,10 +41,17 @@ def parse_arguments():
         help="Number of clients for each domain",
     )
     parser.add_argument(
+        "--directory_name",
+        type=str,
+        default="partition_info",
+        help="name of directory to save partition info",
+    )
+    # heterogeneity
+    parser.add_argument(
         "--hetero_method", type=str, default="dirichlet", help="Heterogeneity method"
     )
     parser.add_argument(
-        "--alpha", type=float, default=0.5, help="Alpha value for Dirichlet heterogeneity"
+        "--alpha", type=float, default=1.0, help="Alpha value for Dirichlet heterogeneity"
     )
     args = parser.parse_args()
     return args
@@ -65,7 +72,7 @@ def partition_data(args) -> Dict[Union[int, str], Dict[str, List]]:
             values: Dict with keys 'files', 'labels', 'domain', values are list
                 'files': list of file paths
                 'labels': list of labels
-                'domain': list of domain names
+                'domain': list of domains of each sample
     """
     domains = ALL_DOMAINS[args.dataset]
     domain_paths = {
@@ -85,10 +92,7 @@ def partition_data(args) -> Dict[Union[int, str], Dict[str, List]]:
 
     domain_distribution = heterogeneity(args, client_domains)
     # partition training data
-    client_data = defaultdict(dict)
-    client_data["validation"] = defaultdict(list)
-    for client_id in range(num_clients):
-        client_data[client_id] = defaultdict(list)
+    client_data = defaultdict(lambda: defaultdict(list))
     for domain, assignment in domain_distribution.items():
         n = len(all_files[domain])  # Number of files in this domain
         indices = np.arange(n)
@@ -115,57 +119,110 @@ def partition_data(args) -> Dict[Union[int, str], Dict[str, List]]:
                 client_data[client_id]["labels"].extend(
                     [all_labels[domain][i] for i in client_data_indices]
                 )
-                client_data[client_id]["domain"].extend(domain)
+                client_data[client_id]["domain"].extend([domain] * num_samples)
                 current_idx += num_samples
                 num_elements_gt_zero -= 1
         client_data["validation"]["files"].extend([all_files[domain][i] for i in val_indices])
         client_data["validation"]["labels"].extend([all_labels[domain][i] for i in val_indices])
-        client_data["validation"]["domain"].extend(domain)
+        client_data["validation"]["domain"].extend([domain] * len(val_indices))
 
     # data for test and validation
     client_data["test"] = {
         "files": all_files[test_domain],
         "labels": all_labels[test_domain],
-        "domain": [test_domain],
+        "domain": [test_domain] * len(all_files[test_domain]),
     }
     return client_data
 
 
-def count_samples_per_domain(client_data):
-    domain_counts = defaultdict(lambda: defaultdict(int))
+def cal_statistics(client_data) -> Dict[int, Dict[str, Dict[str, int]]]:
+    """
+    Calculate the statistics of samples per domain and label for each client.
+
+    Args:
+        client_data (_type_): return of function partition_data
+
+    Returns:
+        Dict[int, Dict[str, Dict[str, int]]]:
+            client_id:
+                "domain": #samples from this domain
+                "label": #samples for this label
+    """
+    client_stats = defaultdict(lambda: defaultdict(dict))
     for client_id, data in client_data.items():
         if isinstance(client_id, int):  # Skip 'validation' and 'test'
-            for domain in data["domain"]:
-                domain_counts[client_id][domain] += 1
-    return domain_counts
+            domains = set(data["domain"])
+            for domain in domains:
+                client_stats[client_id]["domain"][domain] = data["domain"].count(domain)
+            labels = set(data["labels"])
+            for label in labels:
+                client_stats[client_id]["label"][label] = data["labels"].count(label)
+    return client_stats
 
 
-def count_labels_per_client(client_data):
-    label_counts = defaultdict(lambda: defaultdict(int))
-    for client_id, data in client_data.items():
-        if isinstance(client_id, int):  # Skip 'validation' and 'test'
-            for label in data["labels"]:
-                label_counts[client_id][label] += 1
-    return label_counts
+def plot_sample_distribution(client_stats, plot_type="domain", save_path=None):
+    """
+    Plot the distribution of samples across clients with grouped bars.
 
+    Args:
+        client_stats (Dict[int, Dict[str, Dict[str, int]]]):
+            The statistics of samples per domain and label for each client.
+        plot_type (str):
+            The type of distribution to plot: "domain" or "label".
+        save_path (str or None):
+            If provided, the plot will be saved to this path.
+    """
+    clients = sorted(client_stats.keys())
+    num_clients = len(clients)
 
-def plot_sample_distribution(domain_counts):
-    clients = sorted(domain_counts.keys())
-    domains = sorted({domain for counts in domain_counts.values() for domain in counts.keys()})
-
-    # Data preparation for plotting
-    data = {domain: [domain_counts[client][domain] for client in clients] for domain in domains}
+    # Extract relevant data for plotting
+    if plot_type == "domain":
+        items = sorted(
+            {domain for stats in client_stats.values() for domain in stats["domain"].keys()}
+        )
+        data = {
+            item: [client_stats[client]["domain"].get(item, 0) for client in clients]
+            for item in items
+        }
+        ylabel = "Number of Samples from Domain"
+        title = "Domain Distribution Across Clients"
+    elif plot_type == "label":
+        items = sorted(
+            {label for stats in client_stats.values() for label in stats["label"].keys()}
+        )
+        data = {
+            item: [client_stats[client]["label"].get(item, 0) for client in clients]
+            for item in items
+        }
+        ylabel = "Number of Samples per Label"
+        title = "Label Distribution Across Clients"
+    else:
+        raise ValueError("Invalid plot_type. Choose 'domain' or 'label'.")
 
     fig, ax = plt.subplots()
 
-    for domain, counts in data.items():
-        ax.bar(clients, counts, label=domain)
+    bar_width = 0.2  # Width of each bar
+    indices = np.arange(num_clients)  # The x locations for the groups
+
+    # Plot each domain/label as a separate set of bars
+    for i, item in enumerate(items):
+        ax.bar(indices + i * bar_width, data[item], bar_width, label=item)
 
     ax.set_xlabel("Client ID")
-    ax.set_ylabel("Number of Samples")
-    ax.set_title("Sample Distribution Across Clients")
-    ax.legend(title="Domain")
-    plt.show()
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    ax.set_xticks(indices + bar_width * (len(items) - 1) / 2)
+    ax.set_xticklabels(clients)
+    ax.legend(title=plot_type.capitalize())
+
+    if save_path:
+        plt.savefig(save_path, bbox_inches="tight")
+
+
+def defaultdict_to_dict(d):
+    if isinstance(d, defaultdict):
+        d = {k: defaultdict_to_dict(v) for k, v in d.items()}
+    return d
 
 
 if __name__ == "__main__":
@@ -175,3 +232,22 @@ if __name__ == "__main__":
     all_domains = ALL_DOMAINS[args.dataset]
     assert test_domain in all_domains, f"Test domain {test_domain} not found in {args.dataset}"
     client_data = partition_data(args)
+    client_stats = cal_statistics(client_data)
+    client_data = defaultdict_to_dict(client_data)
+    client_stats = defaultdict_to_dict(client_stats)
+    save_path = os.path.join(CURRENT_DIR, args.dataset, args.directory_name)
+    if not os.path.exists(save_path):
+        os.mkdir(save_path)
+    plot_sample_distribution(
+        client_stats,
+        plot_type="domain",
+        save_path=os.path.join(save_path, "domain_distribution.png"),
+    )
+
+    # Save client_data as .pkl file
+    with open(os.path.join(save_path, "client_data.pkl"), "wb") as f:
+        pickle.dump(client_data, f)
+
+    # Save client_stats as .pkl file
+    with open(os.path.join(save_path, "client_stats.pkl"), "wb") as f:
+        pickle.dump(client_stats, f)

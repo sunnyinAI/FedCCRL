@@ -38,7 +38,9 @@ def Dirichlet_heterogeneity(alpha, client_domains, num_clients) -> Dict[str, Lis
             distribution = [
                 1 if client in client_domain_indices[i] else 0 for client in range(num_clients)
             ]
-            domain_distribution[domain] = distribution
+            domain_distribution[domain] = (
+                np.array(distribution) / (num_clients / len(client_domains))
+            ).tolist()
     else:
         for domain in client_domains:
             proportions = np.random.dirichlet([alpha] * num_clients)
