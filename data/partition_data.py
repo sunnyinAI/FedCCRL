@@ -22,17 +22,17 @@ ALL_DOMAINS = {
 }
 
 
-def parse_arguments():
+def get_partition_arguments():
     parser = argparse.ArgumentParser(
         description="Federated Domain Generalization with PACS Dataset"
     )
     parser.add_argument(
         "--dataset",
         type=str,
-        default="office_home",
+        default="pacs",
         choices=["pacs", "vlcs", "office_home"],
     )
-    parser.add_argument("--test_domain", type=str, default="art", help="Test domain")
+    parser.add_argument("--test_domain", type=str, default="cartoon", help="Test domain")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
     parser.add_argument(
         "--num_clients_per_domain",
@@ -132,10 +132,10 @@ def partition_data(args) -> Dict[Union[int, str], Dict[str, List]]:
         "labels": all_labels[test_domain],
         "domain": [test_domain] * len(all_files[test_domain]),
     }
-    return client_data
+    return defaultdict_to_dict(client_data)
 
 
-def cal_statistics(client_data) -> Dict[int, Dict[str, Dict[str, int]]]:
+def client_statistics(client_data) -> Dict[int, Dict[str, Dict[str, int]]]:
     """
     Calculate the statistics of samples per domain and label for each client.
 
@@ -157,7 +157,27 @@ def cal_statistics(client_data) -> Dict[int, Dict[str, Dict[str, int]]]:
             labels = set(data["labels"])
             for label in labels:
                 client_stats[client_id]["label"][label] = data["labels"].count(label)
-    return client_stats
+    return defaultdict_to_dict(client_stats)
+
+
+def dataset_statistics(args):
+    stats = {"domain": {}, "label": {}}
+    domains = ALL_DOMAINS[args.dataset]
+    domain_paths = {
+        domain: os.path.join(PROJECT_DIR, f"data/{args.dataset}/raw", domain) for domain in domains
+    }
+    for domain, path in domain_paths.items():
+        labels = os.listdir(path)
+        num_samples = 0
+        for label in labels:
+            label_dir_path = os.path.join(domain_paths[domain], label)
+            files = os.listdir(label_dir_path)
+            num_files = len(files)
+            stats["label"][label] = stats["label"].get(label, 0) + num_files
+            num_samples += num_files
+        stats["domain"][domain] = num_samples
+
+    return stats
 
 
 def plot_sample_distribution(client_stats, plot_type="domain", save_path=None):
@@ -226,15 +246,15 @@ def defaultdict_to_dict(d):
 
 
 if __name__ == "__main__":
-    args = parse_arguments()
+    args = get_partition_arguments()
     np.random.seed(args.seed)
     test_domain = args.test_domain
     all_domains = ALL_DOMAINS[args.dataset]
     assert test_domain in all_domains, f"Test domain {test_domain} not found in {args.dataset}"
     client_data = partition_data(args)
-    client_stats = cal_statistics(client_data)
-    client_data = defaultdict_to_dict(client_data)
-    client_stats = defaultdict_to_dict(client_stats)
+    client_stats = client_statistics(client_data)
+    dataset_stats = dataset_statistics(args)
+
     save_path = os.path.join(CURRENT_DIR, args.dataset, args.directory_name)
     if not os.path.exists(save_path):
         os.mkdir(save_path)
@@ -251,3 +271,11 @@ if __name__ == "__main__":
     # Save client_stats as .pkl file
     with open(os.path.join(save_path, "client_stats.pkl"), "wb") as f:
         pickle.dump(client_stats, f)
+
+    # Save dataset_stats as .pkl file
+    with open(os.path.join(save_path, "dataset_stats.pkl"), "wb") as f:
+        pickle.dump(dataset_stats, f)
+
+    # Save Args as .pkl file
+    with open(os.path.join(save_path, "args.pkl"), "wb") as f:
+        pickle.dump(vars(args), f)
