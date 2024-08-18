@@ -51,7 +51,7 @@ def get_partition_arguments():
         "--hetero_method", type=str, default="dirichlet", help="Heterogeneity method"
     )
     parser.add_argument(
-        "--alpha", type=float, default=1.0, help="Alpha value for Dirichlet heterogeneity"
+        "--alpha", type=float, default=0.0, help="Alpha value for Dirichlet heterogeneity"
     )
     args = parser.parse_args()
     return args
