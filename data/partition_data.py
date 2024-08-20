@@ -1,3 +1,4 @@
+from copy import deepcopy
 import os
 from pathlib import Path
 import pickle
@@ -245,8 +246,8 @@ def defaultdict_to_dict(d):
     return d
 
 
-if __name__ == "__main__":
-    args = get_partition_arguments()
+def partition_and_statistic(args):
+
     np.random.seed(args.seed)
     test_domain = args.test_domain
     all_domains = ALL_DOMAINS[args.dataset]
@@ -257,7 +258,7 @@ if __name__ == "__main__":
 
     save_path = os.path.join(CURRENT_DIR, args.dataset, args.directory_name)
     if not os.path.exists(save_path):
-        os.mkdir(save_path)
+        os.makedirs(save_path)
     plot_sample_distribution(
         client_stats,
         plot_type="domain",
@@ -279,3 +280,8 @@ if __name__ == "__main__":
     # Save Args as .pkl file
     with open(os.path.join(save_path, "args.pkl"), "wb") as f:
         pickle.dump(vars(args), f)
+
+
+if __name__ == "__main__":
+    args = get_partition_arguments()
+    partition_and_statistic(deepcopy(args))

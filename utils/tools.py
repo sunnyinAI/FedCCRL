@@ -4,8 +4,8 @@ import time
 import yaml
 from argparse import Namespace
 from copy import deepcopy
-from collections import Counter, OrderedDict
-from typing import List, Tuple, Union
+from collections import Counter
+from typing import List, Tuple, Union, OrderedDict
 from pathlib import Path
 import torchvision
 import torch
@@ -67,6 +67,41 @@ def get_best_device(use_cuda: bool) -> torch.device:
     return torch.device(f"cuda:{best_gpu_id}")
 
 
+def trainable_params(
+    src: Union[OrderedDict[str, torch.Tensor], torch.nn.Module],
+    detach=False,
+    requires_name=False,
+) -> Union[List[torch.Tensor], Tuple[List[torch.Tensor], List[str]]]:
+    """Collect all parameters in `src` that `.requires_grad = True` into a list and return it.
+
+    Args:
+        src (Union[OrderedDict[str, torch.Tensor], torch.nn.Module]): The source that contains parameters.
+        requires_name (bool, optional): If set to `True`, The names of parameters would also return in another list. Defaults to False.
+        detach (bool, optional): If set to `True`, the list would contain `param.detach().clone()` rather than `param`. Defaults to False.
+
+    Returns:
+        List of parameters [, names of parameters].
+    """
+    func = (lambda x: x.detach().clone()) if detach else (lambda x: x)
+    parameters = []
+    keys = []
+    if isinstance(src, OrderedDict):
+        for name, param in src.items():
+            if param.requires_grad:
+                parameters.append(func(param))
+                keys.append(name)
+    elif isinstance(src, torch.nn.Module):
+        for name, param in src.state_dict(keep_vars=True).items():
+            if param.requires_grad:
+                parameters.append(func(param))
+                keys.append(name)
+
+    if requires_name:
+        return parameters, keys
+    else:
+        return parameters
+
+
 def vectorize(
     src: Union["OrderedDict[str, torch.Tensor]", List[torch.Tensor]], detach=True
 ) -> torch.Tensor:
@@ -84,38 +119,6 @@ def vectorize(
         return torch.cat([func(param).flatten() for param in src])
     elif isinstance(src, OrderedDict):
         return torch.cat([func(param).flatten() for param in src.values()])
-
-
-@torch.no_grad()
-def evalutate_model(
-    model: torch.nn.Module,
-    dataloader: DataLoader,
-    criterion=torch.nn.CrossEntropyLoss(reduction="sum"),
-    device=torch.device("cpu"),
-) -> Tuple[float, float, int]:
-    """For evaluating the `model` over `dataloader` and return the result calculated by `criterion`.
-
-    Args:
-        model (torch.nn.Module): Target model.
-        dataloader (DataLoader): Target dataloader.
-        criterion (optional): The metric criterion. Defaults to torch.nn.CrossEntropyLoss(reduction="sum").
-        device (torch.device, optional): The device that holds the computation. Defaults to torch.device("cpu").
-
-    Returns:
-        Tuple[float, float, int]: [loss, correct num, sample num]
-    """
-    model.eval()
-    correct = 0
-    loss = 0
-    sample_num = 0
-    for x, y in dataloader:
-        x, y = x.to(device), y.to(device)
-        logits = model(x)
-        loss += criterion(logits, y).item()
-        pred = torch.argmax(logits, -1)
-        correct += (pred == y).sum().item()
-        sample_num += len(y)
-    return loss, correct, sample_num
 
 
 class Logger:
