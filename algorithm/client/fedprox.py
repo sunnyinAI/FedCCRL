@@ -1,6 +1,6 @@
 import torch
 
-from fedavg import FedAvgClient
+from algorithm.client.fedavg import FedAvgClient
 from utils.optimizers_shcedulers import get_optimizer
 from utils.tools import trainable_params, get_best_device, local_time
 

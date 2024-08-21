@@ -5,30 +5,37 @@ import sys
 
 PROJECT_DIR = Path(__file__).parent.parent.parent.absolute()
 sys.path.append(PROJECT_DIR.as_posix())
+
 from algorithm.server.fedavg import FedAvgServer, get_fedavg_argparser
-from algorithm.client.fedprox import FedProxClient
+from algorithm.client.fedsr import FedSRClient
 from data.dataset import FLDataset
 
 
-def get_fedprox_argparser():
+def get_fedsr_argparser() -> ArgumentParser:
     parser = get_fedavg_argparser()
-    parser.add_argument("--mu", type=float, default=0.001)
+    parser.add_argument("--L2R_coeff", type=float, default=1e-2)
+    parser.add_argument("--CMI_coeff", type=float, default=1e-3)
     return parser
 
 
-class FedProxServer(FedAvgServer):
-    def __init__(self, algo="FedProx", args: Namespace = None):
+class FedSRServer(FedAvgServer):
+    def __init__(
+        self,
+        algo: str = "FedSR",
+        args: Namespace = None,
+    ):
         if args is None:
-            args = get_fedprox_argparser().parse_args()
+            args = get_fedsr_argparser().parse_args()
+        args.model = f"fedsr_{args.model}"
         super().__init__(algo, args)
 
     def initialize_clients(self):
         self.client_list = [
-            FedProxClient(self.args, FLDataset(self.args, client_id), client_id, self.logger)
+            FedSRClient(self.args, FLDataset(self.args, client_id), client_id, self.logger)
             for client_id in range(self.num_client)
         ]
 
 
 if __name__ == "__main__":
-    server = FedProxServer()
+    server = FedSRServer()
     server.process_classification()

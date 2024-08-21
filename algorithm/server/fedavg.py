@@ -48,7 +48,7 @@ def get_fedavg_argparser():
         "--model",
         type=str,
         default="mobile3l",
-        choices=["resnet50", "mobile2", "mobile3s", "mobile3l"],
+        choices=["res50", "mobile2", "mobile3s", "mobile3l"],
     )
     parser.add_argument("--augment", type=bool, default=False, help="use data augmentation or not")
     parser.add_argument("--round", type=int, default=10, help="Number of communication rounds")

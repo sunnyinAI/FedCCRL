@@ -20,10 +20,13 @@ NUM_CLASSES = {
 
 def get_model_arch(model_name):
     # static means the model arch is fixed.
-    if "res" in model_name:
-        return functools.partial(ResNet, version=model_name[3:])
-    if "mobile" in model_name:
-        return functools.partial(MobileNet, version=model_name[6:])
+    if "fedsr" not in model_name:
+        if "res" in model_name:
+            return functools.partial(ResNet, version=model_name[3:])
+        if "mobile" in model_name:
+            return functools.partial(MobileNet, version=model_name[6:])
+    else:
+        return functools.partial(Model_4_FedSR, base_model_name=model_name.split("_")[-1])
 
 
 class DecoupledModel(nn.Module):
@@ -134,3 +137,48 @@ class MobileNet(DecoupledModel):
         self.base = mobilenet
         self.classifier = nn.Linear(mobilenet.classifier[-1].in_features, NUM_CLASSES[dataset])
         self.base.classifier[-1] = nn.Identity()
+        pass
+
+
+class Model_4_FedSR(DecoupledModel):
+    # modify base model to suit FedSR
+    def __init__(self, base_model_name, dataset) -> None:
+        super().__init__()
+        base_model = get_model_arch(base_model_name)(dataset=dataset)
+        self.z_dim = base_model.classifier.in_features
+        out_dim = 2 * self.z_dim
+        if "mobile" in base_model_name:
+            self.base = base_model.base
+            # self.classifier = base_model.classifier
+            self.base.classifier[-1] = nn.Linear(base_model.classifier.in_features, out_dim)
+            self.classifier = nn.Linear(self.z_dim, NUM_CLASSES[dataset])
+        elif "res" in base_model_name:
+            self.base = base_model.base
+            # self.classifier= base_model.classifier
+            self.base.fc = nn.Linear(base_model.classifier.in_features, out_dim)
+            self.classifier = nn.Linear(self.z_dim, NUM_CLASSES[dataset])
+        self.r_mu = nn.Parameter(torch.zeros(NUM_CLASSES[dataset], self.z_dim))
+        self.r_sigma = nn.Parameter(torch.ones(NUM_CLASSES[dataset], self.z_dim))
+        self.C = nn.Parameter(torch.ones([]))
+
+    def featurize(self, x, num_samples=1, return_dist=False):
+        # designed for FedSR
+        z_params = self.base(x)
+        z_mu = z_params[:, : self.z_dim]
+        z_sigma = F.softplus(z_params[:, self.z_dim :])
+        z_dist = distributions.Independent(distributions.normal.Normal(z_mu, z_sigma), 1)
+        z = z_dist.rsample([num_samples]).view([-1, self.z_dim])
+
+        if return_dist:
+            return z, (z_mu, z_sigma)
+        else:
+            return z
+
+    def forward(self, x):
+        z = self.featurize(x)
+        logits = self.classifier(z)
+        return logits
+
+
+if __name__ == "__main__":
+    model = get_model_arch(model_name="fedsr_res50")(dataset="pacs")
