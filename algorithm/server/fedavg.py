@@ -135,14 +135,14 @@ class FedAvgServer:
         return weight_list
 
     def aggregate_model(self):
-        agg_weight = self.get_agg_weight()
+        self.agg_weight = self.get_agg_weight()
         model_weight_each_client = [client.get_model_weights() for client in self.client_list]
         new_model_weight = {}
         for key in model_weight_each_client[0].keys():
             new_model_weight[key] = sum(
                 [
                     model_weight[key] * weight
-                    for model_weight, weight in zip(model_weight_each_client, agg_weight)
+                    for model_weight, weight in zip(model_weight_each_client, self.agg_weight)
                 ]
             )
         return new_model_weight

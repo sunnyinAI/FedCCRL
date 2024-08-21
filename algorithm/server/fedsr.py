@@ -13,7 +13,7 @@ from data.dataset import FLDataset
 
 def get_fedsr_argparser() -> ArgumentParser:
     parser = get_fedavg_argparser()
-    parser.add_argument("--L2R_coeff", type=float, default=1e-2)
+    parser.add_argument("--L2R_coeff", type=float, default=1e-3)
     parser.add_argument("--CMI_coeff", type=float, default=1e-3)
     return parser
 

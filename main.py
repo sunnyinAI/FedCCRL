@@ -19,13 +19,20 @@ from data.partition_data import partition_and_statistic, get_partition_arguments
 from algorithm.server.fedavg import FedAvgServer, get_fedavg_argparser
 from algorithm.server.fedprox import FedProxServer, get_fedprox_argparser
 from algorithm.server.fedsr import FedSRServer, get_fedsr_argparser
+from algorithm.server.GA import GAServer, get_GA_argparser
 from utils.tools import local_time
 
-algo2server = {"FedAvg": FedAvgServer, "FedProx": FedProxServer, "FedSR": FedSRServer}
+algo2server = {
+    "FedAvg": FedAvgServer,
+    "FedProx": FedProxServer,
+    "FedSR": FedSRServer,
+    "GA": GAServer,
+}
 algo2argparser = {
     "FedAvg": get_fedavg_argparser(),
     "FedProx": get_fedprox_argparser(),
     "FedSR": get_fedsr_argparser(),
+    "GA": get_GA_argparser(),
 }
 
 
@@ -60,7 +67,7 @@ def get_table():
 
 if __name__ == "__main__":
     begin_time = local_time()
-    algo = "FedSR"
+    algo = "GA"
     domains = ["photo", "sketch", "art_painting", "cartoon"]
     multiprocess = True
     if multiprocess:
