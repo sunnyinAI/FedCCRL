@@ -53,7 +53,7 @@ def get_fedavg_argparser():
     parser.add_argument("--round", type=int, default=10, help="Number of communication rounds")
     parser.add_argument("--lr", type=float, default=0.001, help="Learning rate for training")
     parser.add_argument("--batch_size", type=int, default=64, help="Batch size for training")
-    parser.add_argument("--num_epochs", type=int, default=5, help="Number of epochs for training")
+    parser.add_argument("--num_epochs", type=int, default=3, help="Number of epochs for training")
     parser.add_argument("--optimizer", type=str, default="adam", choices=["adam", "sgd"])
     parser.add_argument("--momentum", type=float, default=0.9, help="Momentum for SGD optimizer")
     parser.add_argument("--weight_decay", type=float, default=0.0001)
