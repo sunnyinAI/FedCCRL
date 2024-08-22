@@ -14,7 +14,7 @@ from data.dataset import FLDataset
 
 def get_GA_argparser():
     parser = get_fedavg_argparser()
-    parser.add_argument("--step_size", type=float, default=0.05)
+    parser.add_argument("--step_size", type=float, default=0.001)
     return parser
 
 

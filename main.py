@@ -20,6 +20,7 @@ from algorithm.server.fedavg import FedAvgServer, get_fedavg_argparser
 from algorithm.server.fedprox import FedProxServer, get_fedprox_argparser
 from algorithm.server.fedsr import FedSRServer, get_fedsr_argparser
 from algorithm.server.GA import GAServer, get_GA_argparser
+from algorithm.server.fediir import FedIIRServer, get_fediir_argparser
 from utils.tools import local_time
 
 algo2server = {
@@ -27,12 +28,14 @@ algo2server = {
     "FedProx": FedProxServer,
     "FedSR": FedSRServer,
     "GA": GAServer,
+    "FedIIR": FedIIRServer,
 }
 algo2argparser = {
     "FedAvg": get_fedavg_argparser(),
     "FedProx": get_fedprox_argparser(),
     "FedSR": get_fedsr_argparser(),
     "GA": get_GA_argparser(),
+    "FedIIR": get_fediir_argparser(),
 }
 
 
@@ -67,13 +70,21 @@ def get_table():
 
 if __name__ == "__main__":
     begin_time = local_time()
-    algo = "GA"
+    algo = "FedIIR"
     domains = ["photo", "sketch", "art_painting", "cartoon"]
     multiprocess = True
     if multiprocess:
         num_processes = min(len(domains), cpu_count())
-        with Pool(processes=num_processes) as pool:
+        pool = Pool(processes=num_processes)
+        try:
             pool.map(process, domains)
+            pool.close()
+            pool.join()
+            print("All processes done")
+        except Exception as e:
+            pool.terminate()
+            pool.join()
+            raise RuntimeError("An error occurred in one of the worker processes.") from e
     else:
         for domain in domains:
             process(domain)
