@@ -16,8 +16,8 @@ from utils.tools import local_time
 def get_fediir_argparser():
     parser = get_fedavg_argparser()
     #
-    parser.add_argument("--gamma", type=float, default=0.001)
-    parser.add_argument("--ema", type=float, default=0.95)
+    parser.add_argument("--gamma", type=float, default=0.0001)
+    parser.add_argument("--ema", type=float, default=0.9)
     return parser
 
 
@@ -49,7 +49,9 @@ class FedIIRServer(FedAvgServer):
             mean_client_grad = tuple(
                 torch.mean(torch.stack(grads), dim=0) for grads in zip(*self.client_gradient)
             )
-
+            # if round_id == 0:
+            #     self.grad_mean = mean_client_grad
+            # else:
             self.grad_mean = tuple(
                 self.args.ema * mean + (1 - self.args.ema) * mean_client
                 for mean, mean_client in zip(self.grad_mean, mean_client_grad)

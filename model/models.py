@@ -8,6 +8,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
+from torch.nn import init
 from torch import Tensor
 import torch.distributions as distributions
 
@@ -113,7 +114,8 @@ class ResNet(DecoupledModel):
         pretrained = True
         resnet: models.ResNet = archs[version][0](weights=archs[version][1] if pretrained else None)
         self.base = resnet
-        self.classifier = nn.Linear(self.base.fc.in_features, NUM_CLASSES[dataset])
+        self.feature_dim = self.base.fc.in_features
+        self.classifier = nn.Linear(self.feature_dim, NUM_CLASSES[dataset])
         self.base.fc = nn.Identity()
 
 
@@ -135,7 +137,8 @@ class MobileNet(DecoupledModel):
         pretrained = True
         mobilenet = archs[version][0](weights=archs[version][1] if pretrained else None)
         self.base = mobilenet
-        self.classifier = nn.Linear(mobilenet.classifier[-1].in_features, NUM_CLASSES[dataset])
+        self.feature_dim = self.base.classifier[-1].in_features
+        self.classifier = nn.Linear(self.feature_dim, NUM_CLASSES[dataset])
         self.base.classifier[-1] = nn.Identity()
         pass
 
@@ -180,5 +183,65 @@ class Model_4_FedSR(DecoupledModel):
         return logits
 
 
+class FedADG_Discriminator(nn.Module):
+    def __init__(self, num_labels, hidden_size, rp_size):
+        super().__init__()
+        self.features_pro = nn.Sequential(
+            nn.Linear(rp_size, 1024),
+            nn.LeakyReLU(),
+            nn.Linear(1024, 1),
+            nn.Sigmoid(),
+        )
+        self.optimizer = None
+        self.projection = nn.Linear(hidden_size + num_labels, rp_size, bias=False)
+        with torch.no_grad():
+            self.projection.weight.div_(torch.norm(self.projection.weight, keepdim=True))
+
+    def forward(self, y, z):
+        feature = z.view(z.size(0), -1)
+        feature = torch.cat([feature, y], dim=1)
+        feature = self.projection(feature)
+        logit = self.features_pro(feature)
+        return logit
+
+
+class FedADG_GeneDistrNet(nn.Module):
+    def __init__(self, num_labels, hidden_size):
+        super(FedADG_GeneDistrNet, self).__init__()
+        self.num_labels = num_labels
+        self.input_size = hidden_size
+        self.latent_size = 4096
+        self.genedistri = nn.Sequential(
+            nn.Linear(self.input_size + self.num_labels, self.latent_size),
+            nn.LeakyReLU(),
+            nn.Linear(self.latent_size, hidden_size),
+            nn.ReLU(),
+        )
+        self.initial_params()
+
+    def initial_params(self):
+        for layer in self.modules():
+            if isinstance(layer, torch.nn.Linear):
+                init.xavier_uniform_(layer.weight, 0.5)
+
+    def forward(self, x, y):
+        x = torch.cat([x, y], dim=1)
+        x = self.genedistri(x)
+        return x
+
+
+def get_FedADG_models(classification_model, dataset, rp_size=1024):
+    classification_model = get_model_arch(model_name=classification_model)(dataset=dataset)
+    discriminator = FedADG_Discriminator(
+        NUM_CLASSES[dataset], classification_model.feature_dim, rp_size
+    )
+    generator = FedADG_GeneDistrNet(NUM_CLASSES[dataset], classification_model.feature_dim)
+    return classification_model, discriminator, generator
+
+
 if __name__ == "__main__":
-    model = get_model_arch(model_name="fedsr_res50")(dataset="pacs")
+    model = get_model_arch(model_name="res50")(dataset="pacs")
+    input_tensor = torch.randn(5, 3, 224, 224)  # Generate a 3*224*224 tensor
+    model.eval()  # Set the model to evaluation mode
+    all_features = model.get_final_features(input_tensor)  # Get all features
+    pass

@@ -70,9 +70,9 @@ def get_table():
 
 if __name__ == "__main__":
     begin_time = local_time()
-    algo = "FedIIR"
+    algo = "FedProx"
     domains = ["photo", "sketch", "art_painting", "cartoon"]
-    multiprocess = True
+    multiprocess = False
     if multiprocess:
         num_processes = min(len(domains), cpu_count())
         pool = Pool(processes=num_processes)

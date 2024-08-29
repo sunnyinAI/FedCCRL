@@ -16,11 +16,14 @@ class FedAvgClient:
         self.dataset = dataset
         self.client_id = client_id
         self.logger = logger
+        self.train_loader = DataLoader(self.dataset, batch_size=self.args.batch_size, shuffle=True)
+        self.initialize_model()
+
+    def initialize_model(self):
         self.classification_model = get_model_arch(model_name=self.args.model)(
             dataset=self.args.dataset
         )
         self.device = None
-        self.train_loader = DataLoader(self.dataset, batch_size=self.args.batch_size, shuffle=True)
         self.optimizer = get_optimizer(self.classification_model, self.args)
         self.scheduler = CosineAnnealingLRWithWarmup(
             optimizer=self.optimizer, total_epochs=self.args.num_epochs * self.args.round
@@ -34,6 +37,7 @@ class FedAvgClient:
 
     def move2new_device(self):
         device = get_best_device(self.args.use_cuda)
+        # device = torch.device("cuda:0")
         self.classification_model.to(device)
         if self.device is None or self.device != device:
             self.device = device
