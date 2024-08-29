@@ -36,6 +36,7 @@ class FLDataset(Dataset):
         self.label_to_index: Dict[int] = {
             label: idx for idx, label in enumerate(sorted(dataset_stats["label"].keys()))
         }
+        self.num_labels = len(dataset_stats["label"].keys())
         transform = transforms.Compose(
             [
                 transforms.Resize((224, 224)),

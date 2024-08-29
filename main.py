@@ -21,6 +21,7 @@ from algorithm.server.fedprox import FedProxServer, get_fedprox_argparser
 from algorithm.server.fedsr import FedSRServer, get_fedsr_argparser
 from algorithm.server.GA import GAServer, get_GA_argparser
 from algorithm.server.fediir import FedIIRServer, get_fediir_argparser
+from algorithm.server.fedadg import FedADGServer, get_fedadg_argparser
 from utils.tools import local_time
 
 algo2server = {
@@ -29,6 +30,7 @@ algo2server = {
     "FedSR": FedSRServer,
     "GA": GAServer,
     "FedIIR": FedIIRServer,
+    "FedADG": FedADGServer,
 }
 algo2argparser = {
     "FedAvg": get_fedavg_argparser(),
@@ -36,6 +38,7 @@ algo2argparser = {
     "FedSR": get_fedsr_argparser(),
     "GA": get_GA_argparser(),
     "FedIIR": get_fediir_argparser(),
+    "FedADG": get_fedadg_argparser(),
 }
 
 

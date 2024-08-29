@@ -2,13 +2,16 @@ import torch
 import torch.optim as optim
 
 
-def get_optimizer(model, args):
-    if args.optimizer == "sgd":
+def get_optimizer(model, opt_name, lr, **kwargs):
+    if opt_name == "sgd":
         optimizer = optim.SGD(
-            model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay
+            model.parameters(),
+            lr=lr,
+            momentum=kwargs["momentum"],
+            weight_decay=kwargs["weight_decay"],
         )
-    elif args.optimizer == "adam":
-        optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    elif opt_name == "adam":
+        optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=kwargs["weight_decay"])
     return optimizer
 
 

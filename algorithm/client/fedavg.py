@@ -24,7 +24,12 @@ class FedAvgClient:
             dataset=self.args.dataset
         )
         self.device = None
-        self.optimizer = get_optimizer(self.classification_model, self.args)
+        self.optimizer = get_optimizer(
+            self.classification_model,
+            self.args.optimizer,
+            self.args.lr,
+            weight_decay=self.args.weight_decay,
+        )
         self.scheduler = CosineAnnealingLRWithWarmup(
             optimizer=self.optimizer, total_epochs=self.args.num_epochs * self.args.round
         )
@@ -42,7 +47,12 @@ class FedAvgClient:
         if self.device is None or self.device != device:
             self.device = device
             optimizer_state = self.optimizer.state_dict()
-            self.optimizer = get_optimizer(self.classification_model, self.args)
+            self.optimizer = get_optimizer(
+                self.classification_model,
+                self.args.optimizer,
+                self.args.lr,
+                weight_decay=self.args.weight_decay,
+            )
             self.optimizer.load_state_dict(optimizer_state)
             scheduler_state = self.scheduler.state_dict()
             self.scheduler = CosineAnnealingLRWithWarmup(

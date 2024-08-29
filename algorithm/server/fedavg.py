@@ -4,7 +4,7 @@ from pathlib import Path
 import sys
 from argparse import Namespace, ArgumentParser
 import pickle
-from typing import Dict, List
+from typing import Dict, List, OrderedDict
 from rich.console import Console
 import torch
 
@@ -133,7 +133,7 @@ class FedAvgServer:
         weight_list = [num_data / num_total_data for num_data in num_data_each_client]
         return weight_list
 
-    def aggregate_model(self):
+    def aggregate_model(self) -> OrderedDict:
         self.agg_weight = self.get_agg_weight()
         model_weight_each_client = [client.get_model_weights() for client in self.client_list]
         new_model_weight = {}
@@ -179,7 +179,7 @@ class FedAvgServer:
             with open(test_accuracy_file, "wb") as f:
                 pickle.dump(test_acc, f)
 
-    def evaluate(self, dataset):
+    def evaluate(self, dataset) -> float:
         dataloader = torch.utils.data.DataLoader(dataset, batch_size=self.args.batch_size)
         with torch.no_grad():
             correct = 0
