@@ -54,6 +54,8 @@ def process(test_domain):
     fl_args = algo2argparser[algo].parse_args()
     fl_args.partition_info_dir = dir_name
     fl_args.output_dir = begin_time
+    if algo == "FedADG":
+        fl_args.optimizer = "sgd"
     server = algo2server[algo](args=deepcopy(fl_args))
     server.process_classification()
 
@@ -73,7 +75,7 @@ def get_table():
 
 if __name__ == "__main__":
     begin_time = local_time()
-    algo = "FedProx"
+    algo = "FedADG"
     domains = ["photo", "sketch", "art_painting", "cartoon"]
     multiprocess = False
     if multiprocess:

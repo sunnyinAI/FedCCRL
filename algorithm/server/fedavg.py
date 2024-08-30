@@ -55,7 +55,7 @@ def get_fedavg_argparser():
     parser.add_argument("--batch_size", type=int, default=64, help="Batch size for training")
     parser.add_argument("--num_epochs", type=int, default=3, help="Number of epochs for training")
     parser.add_argument("--optimizer", type=str, default="adam", choices=["adam", "sgd"])
-    parser.add_argument("--momentum", type=float, default=0.9, help="Momentum for SGD optimizer")
+    # parser.add_argument("--momentum", type=float, default=0.9, help="Momentum for SGD optimizer")
     parser.add_argument("--weight_decay", type=float, default=0.0001)
     parser.add_argument("--test_gap", type=int, default=1)
 
@@ -157,6 +157,7 @@ class FedAvgServer:
             self.logger.log("=" * 20, f"Round {round_id}", "=" * 20)
             for client_id in range(self.num_client):
                 self.client_list[client_id].train()
+
             aggregated_weights = self.aggregate_model()
             self.classification_model.load_state_dict(aggregated_weights)
             for client_id in range(self.num_client):

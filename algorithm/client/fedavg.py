@@ -3,6 +3,7 @@ from typing import Dict, List, OrderedDict
 from pathlib import Path
 import torch
 from torch.utils.data import DataLoader
+import gc
 
 PROJECT_DIR = Path(__file__).parent.parent.parent.absolute()
 from model.models import get_model_arch
@@ -38,6 +39,7 @@ class FedAvgClient:
         self.classification_model.load_state_dict(model_weights)
 
     def get_model_weights(self) -> OrderedDict:
+        # self.classification_model.to(torch.device("cpu"))
         return self.classification_model.state_dict()
 
     def move2new_device(self):
@@ -45,20 +47,20 @@ class FedAvgClient:
         # device = torch.device("cuda:0")
         self.classification_model.to(device)
         if self.device is None or self.device != device:
-            self.device = device
             optimizer_state = self.optimizer.state_dict()
+            scheduler_state = self.scheduler.state_dict()
             self.optimizer = get_optimizer(
                 self.classification_model,
                 self.args.optimizer,
                 self.args.lr,
                 weight_decay=self.args.weight_decay,
             )
-            self.optimizer.load_state_dict(optimizer_state)
-            scheduler_state = self.scheduler.state_dict()
             self.scheduler = CosineAnnealingLRWithWarmup(
                 optimizer=self.optimizer, total_epochs=self.args.num_epochs * self.args.round
             )
+            self.optimizer.load_state_dict(optimizer_state)
             self.scheduler.load_state_dict(scheduler_state)
+        self.device = device
 
     def train(
         self,
@@ -81,4 +83,5 @@ class FedAvgClient:
         average_loss = total_loss / len(self.train_loader)
         self.classification_model.to(torch.device("cpu"))
         torch.cuda.empty_cache()
+
         self.logger.log(f"{local_time()}, Client {self.client_id}, Avg Loss: {average_loss:.4f}")

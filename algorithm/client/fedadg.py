@@ -1,3 +1,4 @@
+import gc
 from typing import OrderedDict, Tuple
 import torch
 
@@ -37,6 +38,10 @@ class FedADGClient(FedAvgClient):
         )
 
     def get_model_weights(self) -> Tuple[OrderedDict]:
+
+        self.classification_model.to(torch.device("cpu"))
+        self.discriminator.to(torch.device("cpu"))
+        self.generator.to(torch.device("cpu"))
         return (
             self.classification_model.state_dict(),
             self.discriminator.state_dict(),
@@ -54,7 +59,6 @@ class FedADGClient(FedAvgClient):
         self.generator.to(device)
         self.discriminator.to(device)
         if self.device is None or self.device != device:
-            self.device = device
             optimizer_state = self.optimizer.state_dict()
             disc_optimizer_state = self.disc_optimizer.state_dict()
             gen_optimizer_state = self.gen_optimizer.state_dict()
@@ -64,21 +68,22 @@ class FedADGClient(FedAvgClient):
                 self.args.lr,
                 weight_decay=self.args.weight_decay,
             )
-            self.optimizer.load_state_dict(optimizer_state)
             self.disc_optimizer = get_optimizer(
                 self.discriminator,
                 self.args.optimizer,
                 self.args.disc_lr,
                 weight_decay=self.args.weight_decay,
             )
-            self.disc_optimizer.load_state_dict(disc_optimizer_state)
             self.gen_optimizer = get_optimizer(
                 self.generator,
                 self.args.optimizer,
                 self.args.gen_lr,
                 weight_decay=self.args.weight_decay,
             )
+            self.optimizer.load_state_dict(optimizer_state)
             self.gen_optimizer.load_state_dict(gen_optimizer_state)
+            self.disc_optimizer.load_state_dict(disc_optimizer_state)
+        self.device = device
 
     def train(self):
         self.move2new_device()
@@ -117,7 +122,7 @@ class FedADGClient(FedAvgClient):
                 y_pred = self.classification_model.classifier(feature)
                 loss_err = criterion(y_pred, target)
                 loss_advf = torch.mean(torch.pow(1 - self.discriminator(y_onehot, feature), 2))
-                loss_cla = self.args.lambda_0 * loss_err + (1 - self.args.lambda_0) * loss_advf
+                loss_cla = self.args.lambda_0 * loss_advf + (1 - self.args.lambda_0) * loss_err
                 loss_cla.backward()
                 self.optimizer.step()
                 # train discriminator by minimizing L_{advd}
@@ -140,7 +145,6 @@ class FedADGClient(FedAvgClient):
                 loss_advg = torch.mean(torch.pow(1 - self.discriminator(y_onehot, gen_feature), 2))
                 loss_advg.backward()
                 self.gen_optimizer.step()
-
         self.classification_model.to(torch.device("cpu"))
         self.discriminator.to(torch.device("cpu"))
         self.generator.to(torch.device("cpu"))

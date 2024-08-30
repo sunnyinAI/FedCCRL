@@ -52,11 +52,11 @@ class FedADGServer(FedAvgServer):
         aggregated_weights = []
         for weights_list in [classification_weights, discriminator_weights, generator_weights]:
             new_model_weight = {}
-            for key in model_weight_each_client[0].keys():
+            for key in weights_list[0].keys():
                 new_model_weight[key] = sum(
                     [
                         model_weight[key] * weight
-                        for model_weight, weight in zip(model_weight_each_client, self.agg_weight)
+                        for model_weight, weight in zip(weights_list, self.agg_weight)
                     ]
                 )
             aggregated_weights.append(new_model_weight)
@@ -78,6 +78,7 @@ class FedADGServer(FedAvgServer):
             self.logger.log("=" * 20, f"Round {round_id}", "=" * 20)
             for client_id in range(self.num_client):
                 self.client_list[client_id].train()
+
             aggregated_weights = self.aggregate_model()
             self.classification_model.load_state_dict(aggregated_weights[0])
             for client_id in range(self.num_client):

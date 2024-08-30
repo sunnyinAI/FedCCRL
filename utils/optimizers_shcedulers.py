@@ -7,7 +7,7 @@ def get_optimizer(model, opt_name, lr, **kwargs):
         optimizer = optim.SGD(
             model.parameters(),
             lr=lr,
-            momentum=kwargs["momentum"],
+            momentum=0.9,
             weight_decay=kwargs["weight_decay"],
         )
     elif opt_name == "adam":
