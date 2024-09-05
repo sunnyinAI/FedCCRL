@@ -14,8 +14,13 @@ def get_fedms_argparser():
     parser = get_fedavg_argparser()
     parser.add_argument("--mixstyle_alpha", type=float, default=0.1)
     parser.add_argument("--epsilon", type=float, default=1e-6)
-    parser.add_argument("--upload_ratio", type=float, default=0.7)
-    parser.add_argument("--p", type=float, default=0.5)
+    parser.add_argument("--upload_ratio", type=float, default=0.5)
+    parser.add_argument("--p", type=float, default=1)
+    parser.add_argument(
+        "--eta", type=float, default=80, help="the hyper-parameter for JS divergence"
+    )
+    parser.add_argument("--delta", type=float, default=0.1, help="the hyper-parameter for ")
+    # parser.add_argument("--k", type=int, default=2)
     return parser
 
 

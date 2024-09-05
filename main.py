@@ -55,7 +55,7 @@ def get_main_argparser():
 
 
 def process(test_domain):
-    time.sleep(np.random.randint(0, 3))
+    time.sleep(np.random.randint(0, 5))
     # 1. partition data
     data_args = get_partition_arguments()
     data_args.test_domain = test_domain
@@ -90,11 +90,10 @@ def get_table():
 if __name__ == "__main__":
     main_args = get_main_argparser().parse_args()
     begin_time = local_time()
+    # begin_time = "2024-09-05-11:40:05"
     algo = main_args.algo
     domains = ALL_DOMAINS[main_args.dataset]
     sys.argv = [sys.argv[0]]
-
-    # domains=["photo", "sketch", "art_painting", "cartoon"]
     multiprocess = True
     if multiprocess:
         num_processes = min(len(domains), cpu_count())
@@ -103,7 +102,6 @@ if __name__ == "__main__":
             pool.map(process, domains)
             pool.close()
             pool.join()
-            print("All processes done")
         except Exception as e:
             pool.terminate()
             pool.join()

@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 import random
 from algorithm.client.fedavg import FedAvgClient
 from utils.optimizers_shcedulers import get_optimizer
@@ -26,8 +27,12 @@ class FedMSClient(FedAvgClient):
             local_statistic_pool["mean"].append(mean)
             local_statistic_pool["std"].append(std)
 
-        local_statistic_pool["mean"] = torch.cat(local_statistic_pool["mean"], dim=0)
-        local_statistic_pool["std"] = torch.cat(local_statistic_pool["std"], dim=0)
+        local_statistic_pool["mean"] = torch.cat(local_statistic_pool["mean"], dim=0).to(
+            torch.device("cpu")
+        )
+        local_statistic_pool["std"] = torch.cat(local_statistic_pool["std"], dim=0).to(
+            torch.device("cpu")
+        )
         return local_statistic_pool
 
     def download_statistic_pool(self, statistic_pool):
@@ -57,10 +62,24 @@ class FedMSClient(FedAvgClient):
             total_loss = 0.0
             for batch_idx, (data, target) in enumerate(self.train_loader):
                 self.optimizer.zero_grad()
-                mu2, std2 = self.sample_statistic(len(data))
-                data = self.MixStyle(data, mu2, std2)
                 output = self.classification_model(data)
                 loss = criterion(output, target)
+                output = F.softmax(output, dim=1)
+                mix_output = []
+                for _ in range(2):
+                    mu2, std2 = self.sample_statistic(len(data))
+                    generated_data = self.MixStyle(data, mu2, std2)
+                    pred = self.classification_model(generated_data)
+                    loss += criterion(pred, target)
+                    if self.args.eta > 0:
+                        mix_output.append(F.softmax(pred, dim=1))
+                if self.args.eta > 0:
+                    M = torch.clamp((output + mix_output[0] + mix_output[1]) / 3, 1e-7, 1).log()
+                    kl_1 = F.kl_div(M, output, reduction="batchmean")
+                    kl_2 = F.kl_div(M, mix_output[0], reduction="batchmean")
+                    kl_3 = F.kl_div(M, mix_output[1], reduction="batchmean")
+                    JS_loss = (kl_1 + kl_2 + kl_3) / 3
+                    loss += self.args.eta * JS_loss
                 loss.backward()
                 self.optimizer.step()
                 total_loss += loss.item()

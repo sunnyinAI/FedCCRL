@@ -31,7 +31,7 @@ def get_fedavg_argparser():
         "--dataset",
         type=str,
         choices=["pacs", "vlcs", "office_home"],
-        default="pacs",
+        default="office_home",
     )
     parser.add_argument(
         "--partition_info_dir",
