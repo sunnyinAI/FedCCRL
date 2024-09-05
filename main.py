@@ -22,6 +22,7 @@ from algorithm.server.fedsr import FedSRServer, get_fedsr_argparser
 from algorithm.server.GA import GAServer, get_GA_argparser
 from algorithm.server.fediir import FedIIRServer, get_fediir_argparser
 from algorithm.server.fedadg import FedADGServer, get_fedadg_argparser
+from algorithm.server.fedms import FedMSServer, get_fedms_argparser
 from utils.tools import local_time
 
 algo2server = {
@@ -31,6 +32,7 @@ algo2server = {
     "GA": GAServer,
     "FedIIR": FedIIRServer,
     "FedADG": FedADGServer,
+    "FedMS": FedMSServer,
 }
 algo2argparser = {
     "FedAvg": get_fedavg_argparser(),
@@ -39,14 +41,25 @@ algo2argparser = {
     "GA": get_GA_argparser(),
     "FedIIR": get_fediir_argparser(),
     "FedADG": get_fedadg_argparser(),
+    "FedMS": get_fedms_argparser(),
 }
 
 
+def get_main_argparser():
+    parser = ArgumentParser(description="Main arguments.")
+    parser.add_argument("--algo", type=str, default="FedAvg", choices=list(algo2server.keys()))
+    parser.add_argument(
+        "-d", "--dataset", type=str, default="pacs", choices=["pacs", "vlcs", "office_home"]
+    )
+    return parser
+
+
 def process(test_domain):
-    time.sleep(np.random.randint(0, 10))
+    time.sleep(np.random.randint(0, 3))
     # 1. partition data
     data_args = get_partition_arguments()
     data_args.test_domain = test_domain
+    data_args.dataset = main_args.dataset
     dir_name = os.path.join(begin_time, test_domain)
     data_args.directory_name = dir_name
     partition_and_statistic(deepcopy(data_args))
@@ -54,6 +67,7 @@ def process(test_domain):
     fl_args = algo2argparser[algo].parse_args()
     fl_args.partition_info_dir = dir_name
     fl_args.output_dir = begin_time
+    fl_args.dataset = main_args.dataset
     if algo == "FedADG":
         fl_args.optimizer = "sgd"
     server = algo2server[algo](args=deepcopy(fl_args))
@@ -62,7 +76,7 @@ def process(test_domain):
 
 def get_table():
     test_accuracy = {}
-    path2dir = os.path.join("out", algo, "pacs", begin_time)
+    path2dir = os.path.join("out", algo, main_args.dataset, begin_time)
     for domain in domains:
         with open(os.path.join(path2dir, domain, "test_accuracy.pkl"), "rb") as f:
             test_accuracy[domain] = round(pickle.load(f), 2)
@@ -74,10 +88,14 @@ def get_table():
 
 
 if __name__ == "__main__":
+    main_args = get_main_argparser().parse_args()
     begin_time = local_time()
-    algo = "FedADG"
-    domains = ["photo", "sketch", "art_painting", "cartoon"]
-    multiprocess = False
+    algo = main_args.algo
+    domains = ALL_DOMAINS[main_args.dataset]
+    sys.argv = [sys.argv[0]]
+
+    # domains=["photo", "sketch", "art_painting", "cartoon"]
+    multiprocess = True
     if multiprocess:
         num_processes = min(len(domains), cpu_count())
         pool = Pool(processes=num_processes)

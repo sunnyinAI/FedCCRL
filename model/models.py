@@ -1,6 +1,7 @@
 import json
 import functools
 from collections import OrderedDict
+import random
 from typing import List, Optional
 from copy import deepcopy
 
@@ -237,6 +238,32 @@ def get_FedADG_models(classification_model, dataset, rp_size=1024):
     )
     generator = FedADG_GeneDistrNet(NUM_CLASSES[dataset], classification_model.feature_dim)
     return classification_model, discriminator, generator
+
+
+class MixStyle(nn.Module):
+    def __init__(self, p=0.5, alpha=0.1, eps=1e-6):
+        super(MixStyle, self).__init__()
+        self.p = p
+        self.beta = torch.distributions.Beta(torch.tensor(alpha), torch.tensor(alpha))
+        self.eps = eps
+        self.alpha = alpha
+
+    def forward(self, x, mu2, std2):
+        if random.random() > self.p:
+            return x
+        B = x.size(0)
+        mu = x.mean(dim=[2, 3], keepdim=True)
+        var = x.var(dim=[2, 3], keepdim=True)
+        std = (var + self.eps).sqrt()
+        mu, std = mu.detach(), std.detach()
+        x_normed = (x - mu) / std
+        lmda = self.beta.sample((B, 1, 1, 1))
+        lmda = lmda.to(x.device)
+        mu2 = mu2.to(x.device)
+        std2 = std2.to(x.device)
+        mu_mix = mu * lmda + mu2 * (1 - lmda)
+        sig_mix = std * lmda + std2 * (1 - lmda)
+        return x_normed * sig_mix + mu_mix
 
 
 if __name__ == "__main__":

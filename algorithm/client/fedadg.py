@@ -83,6 +83,8 @@ class FedADGClient(FedAvgClient):
             self.optimizer.load_state_dict(optimizer_state)
             self.gen_optimizer.load_state_dict(gen_optimizer_state)
             self.disc_optimizer.load_state_dict(disc_optimizer_state)
+            self.dataset.device = device
+
         self.device = device
 
     def train(self):
@@ -97,8 +99,8 @@ class FedADGClient(FedAvgClient):
                 if len(data) <= 1:
                     continue
                 self.optimizer.zero_grad()
-                data = data.to(self.device)
-                target = target.to(self.device)
+                data = data
+                target = target
                 output = self.classification_model(data)
                 loss = criterion(output, target)
                 loss.backward()
@@ -111,8 +113,8 @@ class FedADGClient(FedAvgClient):
             for batch_idx, (data, target) in enumerate(self.train_loader):
                 self.discriminator.eval()
                 self.generator.eval()
-                data = data.to(self.device)
-                target = target.to(self.device)
+                data = data
+                target = target
                 y_onehot = torch.zeros(target.size(0), self.dataset.num_labels).to(self.device)
                 y_onehot.scatter_(1, target.view(-1, 1), 0.6).to(self.device)
                 randomn = torch.rand(target.size(0), self.generator.input_size).to(self.device)

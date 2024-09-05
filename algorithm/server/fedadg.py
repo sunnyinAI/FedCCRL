@@ -16,7 +16,7 @@ from utils.tools import get_best_device
 
 def get_fedadg_argparser():
     parser = get_fedavg_argparser()
-    parser.add_argument("--lambda_0", type=float, default=0.85, help="lambda_1=1-lambda_0")
+    parser.add_argument("--lambda_0", type=float, default=0.55, help="lambda_1=1-lambda_0")
     parser.add_argument("--E1", type=int, default=3, help="E0 equals to num_epochs in fedavg args ")
     parser.add_argument(
         "--disc_lr", type=float, default=0.0007, help="Learning rate for discriminator"

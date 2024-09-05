@@ -94,8 +94,8 @@ class FedAvgServer:
             len(ALL_DOMAINS[self.args.dataset]) - 1
         ) * self.args.num_clients_per_domain
         self.initialize_logger()
-        self.initialize_dataset()
         self.initialize_model()
+        self.initialize_dataset()
         self.initialize_clients()
 
     def initialize_logger(self):
@@ -110,8 +110,8 @@ class FedAvgServer:
         self.logger.log("Experiment Arguments:", dict(self.args._get_kwargs()))
 
     def initialize_dataset(self):
-        self.test_set = FLDataset(self.args, "test")
-        self.validation_set = FLDataset(self.args, "validation")
+        self.test_set = FLDataset(self.args, "test", device=self.device)
+        self.validation_set = FLDataset(self.args, "validation", device=self.device)
 
     def initialize_model(self):
         self.classification_model = get_model_arch(model_name=self.args.model)(
@@ -187,8 +187,8 @@ class FedAvgServer:
             total = 0
             for batch in dataloader:
                 data, target = batch
-                data = data.to(self.device)
-                target = target.to(self.device)
+                data = data
+                target = target
                 output = self.classification_model(data)
                 _, predicted = torch.max(output.data, 1)
                 total += target.size(0)

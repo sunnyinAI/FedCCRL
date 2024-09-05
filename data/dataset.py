@@ -1,13 +1,21 @@
 from pathlib import Path
 from PIL import Image
 import torch
-from torch.utils.data import Dataset
-from typing import Dict, List, Union
+from torch.utils.data import Dataset, DataLoader
+from typing import Any, Dict, List, Union
 import os
 import pickle
 import torchvision.transforms as transforms
+from torchvision.io import read_image
+from prefetch_generator import BackgroundGenerator
+
 
 CURRENT_DIR = Path(__file__).parent.absolute()
+
+
+class zero_one_normalize:
+    def __call__(self, tensor):
+        return tensor.float().div(255.0)
 
 
 class FLDataset(Dataset):
@@ -15,9 +23,11 @@ class FLDataset(Dataset):
         self,
         args,
         client_id: Union[int, str],
+        device: torch.device = torch.device("cuda"),
     ):
         self.args = args
         self.client_id = client_id
+        self.device = device
         client_data_path = os.path.join(
             CURRENT_DIR, args.dataset, args.partition_info_dir, "client_data.pkl"
         )
@@ -40,7 +50,8 @@ class FLDataset(Dataset):
         transform = transforms.Compose(
             [
                 transforms.Resize((224, 224)),
-                transforms.ToTensor(),
+                zero_one_normalize(),
+                # transforms.ToTensor(),
                 transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
             ]
         )
@@ -68,9 +79,17 @@ class FLDataset(Dataset):
     def __getitem__(self, index):
         # Implement your logic to retrieve and preprocess a single sample from the dataset
         image_path = self.data_paths[index]
-        image = Image.open(image_path).convert("RGB")
+        # image = Image.open(image_path)
+        # image = transforms.ToTensor()(image).to(self.device)
+        image = read_image(image_path)
+        image = image.to(self.device)
         image = self.transform(image)
         label = self.labels[index]
         label = self.label_to_index[label]
-        label = torch.tensor(label)
+        label = torch.tensor(label).to(self.device)
         return image, label
+
+
+class DataLoaderPrefetch(DataLoader):
+    def __iter__(self):
+        return BackgroundGenerator(super().__iter__())

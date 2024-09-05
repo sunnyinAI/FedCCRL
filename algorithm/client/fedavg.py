@@ -9,6 +9,7 @@ PROJECT_DIR = Path(__file__).parent.parent.parent.absolute()
 from model.models import get_model_arch
 from utils.optimizers_shcedulers import get_optimizer, CosineAnnealingLRWithWarmup
 from utils.tools import local_time, get_best_device
+from data.dataset import DataLoaderPrefetch
 
 
 class FedAvgClient:
@@ -18,6 +19,10 @@ class FedAvgClient:
         self.client_id = client_id
         self.logger = logger
         self.train_loader = DataLoader(self.dataset, batch_size=self.args.batch_size, shuffle=True)
+        # self.train_loader = DataLoaderPrefetch(
+        #     self.dataset, batch_size=self.args.batch_size, shuffle=True
+        # )
+
         self.initialize_model()
 
     def initialize_model(self):
@@ -60,6 +65,8 @@ class FedAvgClient:
             )
             self.optimizer.load_state_dict(optimizer_state)
             self.scheduler.load_state_dict(scheduler_state)
+            self.dataset.device = device
+
         self.device = device
 
     def train(
@@ -72,8 +79,6 @@ class FedAvgClient:
             total_loss = 0.0
             for batch_idx, (data, target) in enumerate(self.train_loader):
                 self.optimizer.zero_grad()
-                data = data.to(self.device)
-                target = target.to(self.device)
                 output = self.classification_model(data)
                 loss = criterion(output, target)
                 loss.backward()

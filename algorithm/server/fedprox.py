@@ -12,7 +12,7 @@ from data.dataset import FLDataset
 
 def get_fedprox_argparser():
     parser = get_fedavg_argparser()
-    parser.add_argument("--mu", type=float, default=0.05)
+    parser.add_argument("--mu", type=float, default=0.01)
     return parser
 
 

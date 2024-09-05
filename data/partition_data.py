@@ -30,10 +30,10 @@ def get_partition_arguments():
     parser.add_argument(
         "--dataset",
         type=str,
-        default="pacs",
+        default="office_home",
         choices=["pacs", "vlcs", "office_home"],
     )
-    parser.add_argument("--test_domain", type=str, default="cartoon", help="Test domain")
+    parser.add_argument("--test_domain", type=str, default="art", help="Test domain")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
     parser.add_argument(
         "--num_clients_per_domain",
