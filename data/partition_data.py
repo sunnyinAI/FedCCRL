@@ -17,7 +17,7 @@ sys.path.append(PROJECT_DIR.as_posix())
 from utils.heterogeneity import heterogeneity
 
 ALL_DOMAINS = {
-    "pacs": ["art_painting", "cartoon", "photo", "sketch"],
+    "pacs": ["photo", "art_painting", "cartoon", "sketch"],
     "vlcs": ["caltech", "labelme", "sun", "voc"],
     "office_home": ["art", "clipart", "product", "realworld"],
 }
