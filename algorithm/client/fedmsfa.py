@@ -1,7 +1,8 @@
 import torch
 import torch.nn.functional as F
 from torch import nn
-
+from torchvision.transforms import AugMix
+import torchvision.transforms as transforms
 import random
 from algorithm.client.fedms import FedMSClient
 from utils.optimizers_shcedulers import get_optimizer
@@ -32,6 +33,8 @@ class FedMSFAClient(FedMSClient):
                 for _ in range(2):
                     mu2, std2 = self.sample_statistic(len(data))
                     generated_data = self.MixStyle(data, mu2, std2)
+                    if self.args.AugMix:
+                        generated_data = self.AugMIxAugmentation(generated_data)
                     feature = self.classification_model.base(generated_data)
                     pred = self.classification_model.classifier(feature)
                     loss += criterion(pred, target)
@@ -41,7 +44,9 @@ class FedMSFAClient(FedMSClient):
                         mix_feature.append(feature)
 
                 if self.args.eta > 0:
-                    M = torch.clamp((output + mix_output[0] + mix_output[1]) / 3, 1e-7, 1).log()
+                    M = torch.clamp(
+                        (output + mix_output[0] + mix_output[1]) / 3, 1e-7, 1
+                    ).log()
                     kl_1 = F.kl_div(M, output, reduction="batchmean")
                     kl_2 = F.kl_div(M, mix_output[0], reduction="batchmean")
                     kl_3 = F.kl_div(M, mix_output[1], reduction="batchmean")
@@ -66,9 +71,15 @@ class FedMSFAClient(FedMSClient):
                             ) / 6
                         loss += self.args.delta * alignment_loss
                     elif self.args.fa_method == "mi":
-                        mix_feature_0 = mix_feature[0]
-                        mix_feature_1 = mix_feature[1]
-                        info_nce_loss = self.InfoNCE(mix_feature_0, mix_feature_1)
+                        info_nce_loss = (
+                            # self.InfoNCE(mix_feature[0], mix_feature[1])
+                            self.supervised_contrastive_loss(
+                                mix_feature[0], feature_1, target
+                            )
+                            + self.supervised_contrastive_loss(
+                                mix_feature[1], feature_1, target
+                            )
+                        ) / 2
                         loss += self.args.delta * info_nce_loss
 
                 loss.backward()
@@ -79,7 +90,9 @@ class FedMSFAClient(FedMSClient):
         self.classification_model.to(torch.device("cpu"))
         del self.statistic_pool
         torch.cuda.empty_cache()
-        self.logger.log(f"{local_time()}, Client {self.client_id}, Avg Loss: {average_loss:.4f}")
+        self.logger.log(
+            f"{local_time()}, Client {self.client_id}, Avg Loss: {average_loss:.4f}"
+        )
 
     @torch.no_grad()
     def mean_cov(self, center=False):
@@ -118,3 +131,27 @@ class FedMSFAClient(FedMSClient):
         g_yx = -torch.log(diag_e_sim_XY / (sum_e_sim_yy + sum_e_sim_yx))
         infonce = 0.5 * (g_xy.mean() + g_yx.mean())
         return infonce
+
+    def supervised_contrastive_loss(self, x, y, label, temperature=0.1):
+        x_norm = torch.norm(x, dim=1, keepdim=True)
+        y_norm = torch.norm(y, dim=1, keepdim=True)
+        x = x / x_norm
+        y = y / y_norm
+        samples = torch.cat((x, y), dim=0)
+        label = torch.cat((label, label), dim=0)
+        same_label_matrix = torch.eq(label.unsqueeze(1), label.unsqueeze(0)).float()
+        sim = torch.matmul(samples, samples.T) / temperature
+        same_label_sim = sim * same_label_matrix
+        same_label_num = torch.sum(same_label_matrix, dim=1)
+        # diff_label_sim = torch.exp(sim) * diff_label_matrix
+        negative_sim = torch.exp(sim)
+        if self.args.negative_sample == "diff_label":
+            negative_sim = negative_sim * (1 - same_label_matrix)
+            negative_sum = torch.log(torch.sum(negative_sim, dim=1))
+        else:
+            negative_sum = torch.log(
+                torch.sum(negative_sim, dim=1) - negative_sim.diag()
+            )
+        positive_sum = torch.sum(same_label_sim, dim=1) / same_label_num
+        sum = torch.mean(-positive_sum + negative_sum)
+        return sum

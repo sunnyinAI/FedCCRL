@@ -19,10 +19,13 @@ def get_fedmsfa_argparser():
     parser.add_argument("--upload_ratio", type=float, default=0.5)
     parser.add_argument("--p", type=float, default=1)
     parser.add_argument(
-        "--eta", type=float, default=40, help="the hyper-parameter for JS divergence"
+        "--eta", type=float, default=0.0, help="the hyper-parameter for JS divergence"
     )
     parser.add_argument(
-        "--delta", type=float, default=1, help="the hyper-parameter for feature alignment loss"
+        "--delta",
+        type=float,
+        default=1.0,
+        help="the hyper-parameter for feature alignment loss",
     )
     parser.add_argument(
         "--fa_method",
@@ -32,6 +35,13 @@ def get_fedmsfa_argparser():
         help="feature alignment method. 'mi' represents mutual information",
     )
     parser.add_argument("--align2center", type=bool, default=False)
+    parser.add_argument(
+        "--negative_sample",
+        type=str,
+        choices=["all", "diff_label"],
+        default="diff_label",
+    )
+    parser.add_argument("--AugMix", type=bool, default=True)
     return parser
 
 
@@ -44,7 +54,9 @@ class FedMSFAServer(FedMSServer):
 
     def initialize_clients(self):
         self.client_list = [
-            FedMSFAClient(self.args, FLDataset(self.args, client_id), client_id, self.logger)
+            FedMSFAClient(
+                self.args, FLDataset(self.args, client_id), client_id, self.logger
+            )
             for client_id in range(self.num_client)
         ]
 

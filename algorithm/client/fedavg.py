@@ -9,7 +9,6 @@ PROJECT_DIR = Path(__file__).parent.parent.parent.absolute()
 from model.models import get_model_arch
 from utils.optimizers_shcedulers import get_optimizer, CosineAnnealingLRWithWarmup
 from utils.tools import local_time, get_best_device
-from data.dataset import DataLoaderPrefetch
 
 
 class FedAvgClient:
@@ -18,10 +17,9 @@ class FedAvgClient:
         self.dataset = dataset
         self.client_id = client_id
         self.logger = logger
-        self.train_loader = DataLoader(self.dataset, batch_size=self.args.batch_size, shuffle=True)
-        # self.train_loader = DataLoaderPrefetch(
-        #     self.dataset, batch_size=self.args.batch_size, shuffle=True
-        # )
+        self.train_loader = DataLoader(
+            self.dataset, batch_size=self.args.batch_size, shuffle=True
+        )
 
         self.initialize_model()
 
@@ -37,7 +35,8 @@ class FedAvgClient:
             weight_decay=self.args.weight_decay,
         )
         self.scheduler = CosineAnnealingLRWithWarmup(
-            optimizer=self.optimizer, total_epochs=self.args.num_epochs * self.args.round
+            optimizer=self.optimizer,
+            total_epochs=self.args.num_epochs * self.args.round,
         )
 
     def load_model_weights(self, model_weights):
@@ -61,7 +60,8 @@ class FedAvgClient:
                 weight_decay=self.args.weight_decay,
             )
             self.scheduler = CosineAnnealingLRWithWarmup(
-                optimizer=self.optimizer, total_epochs=self.args.num_epochs * self.args.round
+                optimizer=self.optimizer,
+                total_epochs=self.args.num_epochs * self.args.round,
             )
             self.optimizer.load_state_dict(optimizer_state)
             self.scheduler.load_state_dict(scheduler_state)
@@ -89,4 +89,6 @@ class FedAvgClient:
         self.classification_model.to(torch.device("cpu"))
         torch.cuda.empty_cache()
 
-        self.logger.log(f"{local_time()}, Client {self.client_id}, Avg Loss: {average_loss:.4f}")
+        self.logger.log(
+            f"{local_time()}, Client {self.client_id}, Avg Loss: {average_loss:.4f}"
+        )

@@ -28,7 +28,9 @@ def get_model_arch(model_name):
         if "mobile" in model_name:
             return functools.partial(MobileNet, version=model_name[6:])
     else:
-        return functools.partial(Model_4_FedSR, base_model_name=model_name.split("_")[-1])
+        return functools.partial(
+            Model_4_FedSR, base_model_name=model_name.split("_")[-1]
+        )
 
 
 class DecoupledModel(nn.Module):
@@ -113,7 +115,9 @@ class ResNet(DecoupledModel):
 
         # NOTE: If you don't want parameters pretrained, set `pretrained` as False
         pretrained = True
-        resnet: models.ResNet = archs[version][0](weights=archs[version][1] if pretrained else None)
+        resnet: models.ResNet = archs[version][0](
+            weights=archs[version][1] if pretrained else None
+        )
         self.base = resnet
         self.feature_dim = self.base.fc.in_features
         self.classifier = nn.Linear(self.feature_dim, NUM_CLASSES[dataset])
@@ -154,7 +158,9 @@ class Model_4_FedSR(DecoupledModel):
         if "mobile" in base_model_name:
             self.base = base_model.base
             # self.classifier = base_model.classifier
-            self.base.classifier[-1] = nn.Linear(base_model.classifier.in_features, out_dim)
+            self.base.classifier[-1] = nn.Linear(
+                base_model.classifier.in_features, out_dim
+            )
             self.classifier = nn.Linear(self.z_dim, NUM_CLASSES[dataset])
         elif "res" in base_model_name:
             self.base = base_model.base
@@ -170,7 +176,9 @@ class Model_4_FedSR(DecoupledModel):
         z_params = self.base(x)
         z_mu = z_params[:, : self.z_dim]
         z_sigma = F.softplus(z_params[:, self.z_dim :])
-        z_dist = distributions.Independent(distributions.normal.Normal(z_mu, z_sigma), 1)
+        z_dist = distributions.Independent(
+            distributions.normal.Normal(z_mu, z_sigma), 1
+        )
         z = z_dist.rsample([num_samples]).view([-1, self.z_dim])
 
         if return_dist:
@@ -196,7 +204,9 @@ class FedADG_Discriminator(nn.Module):
         self.optimizer = None
         self.projection = nn.Linear(hidden_size + num_labels, rp_size, bias=False)
         with torch.no_grad():
-            self.projection.weight.div_(torch.norm(self.projection.weight, keepdim=True))
+            self.projection.weight.div_(
+                torch.norm(self.projection.weight, keepdim=True)
+            )
 
     def forward(self, y, z):
         feature = z.view(z.size(0), -1)
@@ -232,11 +242,15 @@ class FedADG_GeneDistrNet(nn.Module):
 
 
 def get_FedADG_models(classification_model, dataset, rp_size=1024):
-    classification_model = get_model_arch(model_name=classification_model)(dataset=dataset)
+    classification_model = get_model_arch(model_name=classification_model)(
+        dataset=dataset
+    )
     discriminator = FedADG_Discriminator(
         NUM_CLASSES[dataset], classification_model.feature_dim, rp_size
     )
-    generator = FedADG_GeneDistrNet(NUM_CLASSES[dataset], classification_model.feature_dim)
+    generator = FedADG_GeneDistrNet(
+        NUM_CLASSES[dataset], classification_model.feature_dim
+    )
     return classification_model, discriminator, generator
 
 
@@ -265,6 +279,94 @@ class MixStyle(nn.Module):
         sig_mix = std * lmda + std2 * (1 - lmda)
         return x_normed * sig_mix + mu_mix
 
+
+decoder = nn.Sequential(
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(512, 256, (3, 3)),
+    nn.ReLU(),
+    nn.Upsample(scale_factor=2, mode="nearest"),
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(256, 256, (3, 3)),
+    nn.ReLU(),
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(256, 256, (3, 3)),
+    nn.ReLU(),
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(256, 256, (3, 3)),
+    nn.ReLU(),
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(256, 128, (3, 3)),
+    nn.ReLU(),
+    nn.Upsample(scale_factor=2, mode="nearest"),
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(128, 128, (3, 3)),
+    nn.ReLU(),
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(128, 64, (3, 3)),
+    nn.ReLU(),
+    nn.Upsample(scale_factor=2, mode="nearest"),
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(64, 64, (3, 3)),
+    nn.ReLU(),
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(64, 3, (3, 3)),
+)
+
+vgg = nn.Sequential(
+    nn.Conv2d(3, 3, (1, 1)),
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(3, 64, (3, 3)),
+    nn.ReLU(),  # relu1-1
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(64, 64, (3, 3)),
+    nn.ReLU(),  # relu1-2
+    nn.MaxPool2d((2, 2), (2, 2), (0, 0), ceil_mode=True),
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(64, 128, (3, 3)),
+    nn.ReLU(),  # relu2-1
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(128, 128, (3, 3)),
+    nn.ReLU(),  # relu2-2
+    nn.MaxPool2d((2, 2), (2, 2), (0, 0), ceil_mode=True),
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(128, 256, (3, 3)),
+    nn.ReLU(),  # relu3-1
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(256, 256, (3, 3)),
+    nn.ReLU(),  # relu3-2
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(256, 256, (3, 3)),
+    nn.ReLU(),  # relu3-3
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(256, 256, (3, 3)),
+    nn.ReLU(),  # relu3-4
+    nn.MaxPool2d((2, 2), (2, 2), (0, 0), ceil_mode=True),
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(256, 512, (3, 3)),
+    nn.ReLU(),  # relu4-1, this is the last layer used
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(512, 512, (3, 3)),
+    nn.ReLU(),  # relu4-2
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(512, 512, (3, 3)),
+    nn.ReLU(),  # relu4-3
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(512, 512, (3, 3)),
+    nn.ReLU(),  # relu4-4
+    nn.MaxPool2d((2, 2), (2, 2), (0, 0), ceil_mode=True),
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(512, 512, (3, 3)),
+    nn.ReLU(),  # relu5-1
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(512, 512, (3, 3)),
+    nn.ReLU(),  # relu5-2
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(512, 512, (3, 3)),
+    nn.ReLU(),  # relu5-3
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(512, 512, (3, 3)),
+    nn.ReLU(),  # relu5-4
+)
 
 if __name__ == "__main__":
     model = get_model_arch(model_name="res50")(dataset="pacs")

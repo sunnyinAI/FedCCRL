@@ -1,5 +1,7 @@
 import torch
 import torch.nn.functional as F
+from torchvision.transforms import AugMix
+from torchvision import transforms
 import random
 from algorithm.client.fedavg import FedAvgClient
 from utils.optimizers_shcedulers import get_optimizer
@@ -10,7 +12,9 @@ from model.models import MixStyle
 class FedMSClient(FedAvgClient):
     def __init__(self, args, dataset, client_id, logger):
         super(FedMSClient, self).__init__(args, dataset, client_id, logger)
-        self.MixStyle = MixStyle(self.args.p, self.args.mixstyle_alpha, self.args.epsilon)
+        self.MixStyle = MixStyle(
+            self.args.p, self.args.mixstyle_alpha, self.args.epsilon
+        )
 
     @torch.no_grad()
     def compute_statistic(self):
@@ -27,9 +31,9 @@ class FedMSClient(FedAvgClient):
             local_statistic_pool["mean"].append(mean)
             local_statistic_pool["std"].append(std)
 
-        local_statistic_pool["mean"] = torch.cat(local_statistic_pool["mean"], dim=0).to(
-            torch.device("cpu")
-        )
+        local_statistic_pool["mean"] = torch.cat(
+            local_statistic_pool["mean"], dim=0
+        ).to(torch.device("cpu"))
         local_statistic_pool["std"] = torch.cat(local_statistic_pool["std"], dim=0).to(
             torch.device("cpu")
         )
@@ -69,12 +73,16 @@ class FedMSClient(FedAvgClient):
                 for _ in range(2):
                     mu2, std2 = self.sample_statistic(len(data))
                     generated_data = self.MixStyle(data, mu2, std2)
+                    if self.args.AugMix:
+                        generated_data = self.AugMIxAugmentation(generated_data)
                     pred = self.classification_model(generated_data)
                     loss += criterion(pred, target)
                     if self.args.eta > 0:
                         mix_output.append(F.softmax(pred, dim=1))
                 if self.args.eta > 0:
-                    M = torch.clamp((output + mix_output[0] + mix_output[1]) / 3, 1e-7, 1).log()
+                    M = torch.clamp(
+                        (output + mix_output[0] + mix_output[1]) / 3, 1e-7, 1
+                    ).log()
                     kl_1 = F.kl_div(M, output, reduction="batchmean")
                     kl_2 = F.kl_div(M, mix_output[0], reduction="batchmean")
                     kl_3 = F.kl_div(M, mix_output[1], reduction="batchmean")
@@ -88,4 +96,25 @@ class FedMSClient(FedAvgClient):
         self.classification_model.to(torch.device("cpu"))
         del self.statistic_pool
         torch.cuda.empty_cache()
-        self.logger.log(f"{local_time()}, Client {self.client_id}, Avg Loss: {average_loss:.4f}")
+        self.logger.log(
+            f"{local_time()}, Client {self.client_id}, Avg Loss: {average_loss:.4f}"
+        )
+
+    def denormalize(self, tensor, mean, std):
+        # Assuming mean and std are lists of channel means and stds
+        mean = torch.as_tensor(mean).reshape(1, -1, 1, 1).to(tensor.device)
+        std = torch.as_tensor(std).reshape(1, -1, 1, 1).to(tensor.device)
+        return tensor * std + mean
+
+    def AugMIxAugmentation(self, input_images):
+        mean = torch.tensor([0.485, 0.456, 0.406]).to(input_images.device)
+        std = torch.tensor([0.229, 0.224, 0.225]).to(input_images.device)
+        input_images = self.denormalize(input_images, mean, std)
+        input_images = input_images * 255.0
+        input_images = input_images.to(torch.uint8)
+        augmix = AugMix()
+        # augmixed_images = torch.stack([augmix(x) for x in input_images])
+        augmixed_images = augmix(input_images)
+        augmixed_images = augmixed_images.float().div(255.0)
+        augmixed_images = transforms.Normalize(mean, std)(augmixed_images)
+        return augmixed_images

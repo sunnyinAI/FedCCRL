@@ -25,16 +25,19 @@ ALL_DOMAINS = {
 
 def get_partition_arguments():
     parser = argparse.ArgumentParser(
-        description="Federated Domain Generalization with PACS Dataset"
+        description="Federated Domain Generalization Dataset Partitioning"
     )
     parser.add_argument(
+        "-d",
         "--dataset",
         type=str,
         default="office_home",
         choices=["pacs", "vlcs", "office_home"],
     )
     parser.add_argument("--test_domain", type=str, default="art", help="Test domain")
-    parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
+    parser.add_argument(
+        "--seed", type=int, default=42, help="Random seed for reproducibility"
+    )
     parser.add_argument(
         "--num_clients_per_domain",
         type=int,
@@ -52,9 +55,12 @@ def get_partition_arguments():
         "--hetero_method", type=str, default="dirichlet", help="Heterogeneity method"
     )
     parser.add_argument(
-        "--alpha", type=float, default=0.0, help="Alpha value for Dirichlet heterogeneity"
+        "--alpha",
+        type=float,
+        default=0.0,
+        help="Alpha value for Dirichlet heterogeneity",
     )
-    args = parser.parse_args()
+    args, _ = parser.parse_known_args()
     return args
 
 
@@ -77,7 +83,8 @@ def partition_data(args) -> Dict[Union[int, str], Dict[str, List]]:
     """
     domains = ALL_DOMAINS[args.dataset]
     domain_paths = {
-        domain: os.path.join(PROJECT_DIR, f"data/{args.dataset}/raw", domain) for domain in domains
+        domain: os.path.join(PROJECT_DIR, f"data/{args.dataset}/raw", domain)
+        for domain in domains
     }
     test_domain = args.test_domain
     client_domains = [domain for domain in domains if domain != test_domain]
@@ -113,7 +120,9 @@ def partition_data(args) -> Dict[Union[int, str], Dict[str, List]]:
                 else:
                     # if is the last, assign all remaining samples
                     num_samples = num_training_data - current_idx + 1
-                client_data_indices = train_indices[current_idx : current_idx + num_samples]
+                client_data_indices = train_indices[
+                    current_idx : current_idx + num_samples
+                ]
                 client_data[client_id]["files"].extend(
                     [all_files[domain][i] for i in client_data_indices]
                 )
@@ -123,8 +132,12 @@ def partition_data(args) -> Dict[Union[int, str], Dict[str, List]]:
                 client_data[client_id]["domain"].extend([domain] * num_samples)
                 current_idx += num_samples
                 num_elements_gt_zero -= 1
-        client_data["validation"]["files"].extend([all_files[domain][i] for i in val_indices])
-        client_data["validation"]["labels"].extend([all_labels[domain][i] for i in val_indices])
+        client_data["validation"]["files"].extend(
+            [all_files[domain][i] for i in val_indices]
+        )
+        client_data["validation"]["labels"].extend(
+            [all_labels[domain][i] for i in val_indices]
+        )
         client_data["validation"]["domain"].extend([domain] * len(val_indices))
 
     # data for test and validation
@@ -165,7 +178,8 @@ def dataset_statistics(args):
     stats = {"domain": {}, "label": {}}
     domains = ALL_DOMAINS[args.dataset]
     domain_paths = {
-        domain: os.path.join(PROJECT_DIR, f"data/{args.dataset}/raw", domain) for domain in domains
+        domain: os.path.join(PROJECT_DIR, f"data/{args.dataset}/raw", domain)
+        for domain in domains
     }
     for domain, path in domain_paths.items():
         labels = os.listdir(path)
@@ -199,7 +213,11 @@ def plot_sample_distribution(client_stats, plot_type="domain", save_path=None):
     # Extract relevant data for plotting
     if plot_type == "domain":
         items = sorted(
-            {domain for stats in client_stats.values() for domain in stats["domain"].keys()}
+            {
+                domain
+                for stats in client_stats.values()
+                for domain in stats["domain"].keys()
+            }
         )
         data = {
             item: [client_stats[client]["domain"].get(item, 0) for client in clients]
@@ -209,7 +227,11 @@ def plot_sample_distribution(client_stats, plot_type="domain", save_path=None):
         title = "Domain Distribution Across Clients"
     elif plot_type == "label":
         items = sorted(
-            {label for stats in client_stats.values() for label in stats["label"].keys()}
+            {
+                label
+                for stats in client_stats.values()
+                for label in stats["label"].keys()
+            }
         )
         data = {
             item: [client_stats[client]["label"].get(item, 0) for client in clients]
@@ -251,7 +273,9 @@ def partition_and_statistic(args):
     np.random.seed(args.seed)
     test_domain = args.test_domain
     all_domains = ALL_DOMAINS[args.dataset]
-    assert test_domain in all_domains, f"Test domain {test_domain} not found in {args.dataset}"
+    assert (
+        test_domain in all_domains
+    ), f"Test domain {test_domain} not found in {args.dataset}"
     client_data = partition_data(args)
     client_stats = client_statistics(client_data)
     dataset_stats = dataset_statistics(args)

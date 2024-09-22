@@ -15,7 +15,11 @@ from multiprocessing import cpu_count, Pool
 PROJECT_DIR = Path(__file__).parent.parent.parent.absolute()
 sys.path.append(PROJECT_DIR.as_posix())
 
-from data.partition_data import partition_and_statistic, get_partition_arguments, ALL_DOMAINS
+from data.partition_data import (
+    partition_and_statistic,
+    get_partition_arguments,
+    ALL_DOMAINS,
+)
 from algorithm.server.fedavg import FedAvgServer, get_fedavg_argparser
 from algorithm.server.fedprox import FedProxServer, get_fedprox_argparser
 from algorithm.server.fedsr import FedSRServer, get_fedsr_argparser
@@ -24,6 +28,8 @@ from algorithm.server.fediir import FedIIRServer, get_fediir_argparser
 from algorithm.server.fedadg import FedADGServer, get_fedadg_argparser
 from algorithm.server.fedms import FedMSServer, get_fedms_argparser
 from algorithm.server.fedmsfa import FedMSFAServer, get_fedmsfa_argparser
+from algorithm.server.ccst import CCSTServer, get_ccst_argparser
+
 from utils.tools import local_time
 
 algo2server = {
@@ -35,6 +41,7 @@ algo2server = {
     "FedADG": FedADGServer,
     "FedMS": FedMSServer,
     "FedMSFA": FedMSFAServer,
+    "CCST": CCSTServer,
 }
 algo2argparser = {
     "FedAvg": get_fedavg_argparser(),
@@ -45,14 +52,33 @@ algo2argparser = {
     "FedADG": get_fedadg_argparser(),
     "FedMS": get_fedms_argparser(),
     "FedMSFA": get_fedmsfa_argparser(),
+    "CCST": get_ccst_argparser(),
 }
+
+
+def get_output_dir(args):
+    if algo == "FedMSFA":
+        output_dir = f"eta_{args.eta}_delta_{args.delta}"
+    elif algo == "FedMS":
+        output_dir = f"eta_{args.eta}"
+    elif algo == "CCST":
+        output_dir = f"k_{args.k}_upload_ratio_{args.upload_ratio}"
+    else:
+        output_dir = begin_time
+    return output_dir
 
 
 def get_main_argparser():
     parser = ArgumentParser(description="Main arguments.")
-    parser.add_argument("--algo", type=str, default="FedAvg", choices=list(algo2server.keys()))
     parser.add_argument(
-        "-d", "--dataset", type=str, default="pacs", choices=["pacs", "vlcs", "office_home"]
+        "-a", "--algo", type=str, default="FedMS", choices=list(algo2server.keys())
+    )
+    parser.add_argument(
+        "-d",
+        "--dataset",
+        type=str,
+        default="pacs",
+        choices=["pacs", "vlcs", "office_home"],
     )
     return parser
 
@@ -62,15 +88,13 @@ def process(test_domain):
     # 1. partition data
     data_args = get_partition_arguments()
     data_args.test_domain = test_domain
-    data_args.dataset = main_args.dataset
     dir_name = os.path.join(begin_time, test_domain)
     data_args.directory_name = dir_name
     partition_and_statistic(deepcopy(data_args))
     # 2. train
-    fl_args = algo2argparser[algo].parse_args()
+    fl_args, _ = algo2argparser[algo].parse_known_args()
     fl_args.partition_info_dir = dir_name
-    fl_args.output_dir = begin_time
-    fl_args.dataset = main_args.dataset
+    fl_args.output_dir = get_output_dir(fl_args)
     if algo == "FedADG":
         fl_args.optimizer = "sgd"
     server = algo2server[algo](args=deepcopy(fl_args))
@@ -79,7 +103,13 @@ def process(test_domain):
 
 def get_table():
     test_accuracy = {}
-    path2dir = os.path.join("out", algo, main_args.dataset, begin_time)
+    args, _ = algo2argparser[algo].parse_known_args()
+    path2dir = os.path.join(
+        "out",
+        algo,
+        dataset,
+        get_output_dir(args),
+    )
     for domain in domains:
         with open(os.path.join(path2dir, domain, "test_accuracy.pkl"), "rb") as f:
             test_accuracy[domain] = round(pickle.load(f), 2)
@@ -91,12 +121,20 @@ def get_table():
 
 
 if __name__ == "__main__":
-    main_args = get_main_argparser().parse_args()
     begin_time = local_time()
-    # begin_time = "2024-09-05-11:40:05"
-    algo = main_args.algo
-    domains = ALL_DOMAINS[main_args.dataset]
-    sys.argv = [sys.argv[0]]
+    algo = sys.argv[1]
+    assert algo in algo2server.keys()
+    del sys.argv[1]
+    if "-d" or "--dataset" in sys.argv:
+        try:
+            index = sys.argv.index("-d")
+        except:
+            index = sys.argv.index("--dataset")
+        dataset = sys.argv[index + 1]
+        assert dataset in ["pacs", "vlcs", "office_home"]
+    else:
+        raise ValueError("Please specify the dataset.")
+    domains = ALL_DOMAINS[dataset]
     multiprocess = True
     if multiprocess:
         num_processes = min(len(domains), cpu_count())
@@ -108,7 +146,9 @@ if __name__ == "__main__":
         except Exception as e:
             pool.terminate()
             pool.join()
-            raise RuntimeError("An error occurred in one of the worker processes.") from e
+            raise RuntimeError(
+                "An error occurred in one of the worker processes."
+            ) from e
     else:
         for domain in domains:
             process(domain)

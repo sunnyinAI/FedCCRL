@@ -28,10 +28,11 @@ from algorithm.client.fedavg import FedAvgClient
 def get_fedavg_argparser():
     parser = ArgumentParser(description="Fedavg arguments.")
     parser.add_argument(
+        "-d",
         "--dataset",
         type=str,
         choices=["pacs", "vlcs", "office_home"],
-        default="pacs",
+        default="office_home",
     )
     parser.add_argument(
         "--partition_info_dir",
@@ -49,12 +50,24 @@ def get_fedavg_argparser():
         default="mobile3l",
         choices=["res50", "mobile2", "mobile3s", "mobile3l"],
     )
-    parser.add_argument("--augment", type=bool, default=False, help="use data augmentation or not")
-    parser.add_argument("--round", type=int, default=10, help="Number of communication rounds")
-    parser.add_argument("--lr", type=float, default=0.001, help="Learning rate for training")
-    parser.add_argument("--batch_size", type=int, default=32, help="Batch size for training")
-    parser.add_argument("--num_epochs", type=int, default=3, help="Number of epochs for training")
-    parser.add_argument("--optimizer", type=str, default="adam", choices=["adam", "sgd"])
+    parser.add_argument(
+        "--augment", type=bool, default=False, help="use data augmentation or not"
+    )
+    parser.add_argument(
+        "--round", type=int, default=10, help="Number of communication rounds"
+    )
+    parser.add_argument(
+        "--lr", type=float, default=0.001, help="Learning rate for training"
+    )
+    parser.add_argument(
+        "--batch_size", type=int, default=32, help="Batch size for training"
+    )
+    parser.add_argument(
+        "--num_epochs", type=int, default=3, help="Number of epochs for training"
+    )
+    parser.add_argument(
+        "--optimizer", type=str, default="adam", choices=["adam", "sgd"]
+    )
     # parser.add_argument("--momentum", type=float, default=0.9, help="Momentum for SGD optimizer")
     parser.add_argument("--weight_decay", type=float, default=0.0001)
     parser.add_argument("--test_gap", type=int, default=1)
@@ -76,7 +89,11 @@ class FedAvgServer:
         fix_random_seed(self.args.seed)
 
         with open(
-            PROJECT_DIR / "data" / self.args.dataset / self.args.partition_info_dir / "args.pkl",
+            PROJECT_DIR
+            / "data"
+            / self.args.dataset
+            / self.args.partition_info_dir
+            / "args.pkl",
             "rb",
         ) as f:
             self.args = update_args_from_dict(self.args, pickle.load(f))
@@ -122,7 +139,9 @@ class FedAvgServer:
     def initialize_clients(self):
 
         self.client_list = [
-            FedAvgClient(self.args, FLDataset(self.args, client_id), client_id, self.logger)
+            FedAvgClient(
+                self.args, FLDataset(self.args, client_id), client_id, self.logger
+            )
             for client_id in range(self.num_client)
         ]
 
@@ -135,13 +154,17 @@ class FedAvgServer:
 
     def aggregate_model(self) -> OrderedDict:
         self.agg_weight = self.get_agg_weight()
-        model_weight_each_client = [client.get_model_weights() for client in self.client_list]
+        model_weight_each_client = [
+            client.get_model_weights() for client in self.client_list
+        ]
         new_model_weight = {}
         for key in model_weight_each_client[0].keys():
             new_model_weight[key] = sum(
                 [
                     model_weight[key] * weight
-                    for model_weight, weight in zip(model_weight_each_client, self.agg_weight)
+                    for model_weight, weight in zip(
+                        model_weight_each_client, self.agg_weight
+                    )
                 ]
             )
         return new_model_weight
@@ -181,7 +204,9 @@ class FedAvgServer:
                 pickle.dump(test_acc, f)
 
     def evaluate(self, dataset) -> float:
-        dataloader = torch.utils.data.DataLoader(dataset, batch_size=self.args.batch_size)
+        dataloader = torch.utils.data.DataLoader(
+            dataset, batch_size=self.args.batch_size
+        )
         with torch.no_grad():
             correct = 0
             total = 0
