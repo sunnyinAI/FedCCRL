@@ -221,6 +221,11 @@ class FedAvgServer:
             accuracy = 100 * correct / total
         return accuracy
 
+    def save_checkpoint(self, round):
+        checkpoint = {"model": self.classification_model.state_dict(), "round": round}
+        checkpoint_file = os.path.join(self.path2output_dir, "checkpoint.pth")
+        torch.save(checkpoint, checkpoint_file)
+
 
 if __name__ == "__main__":
     server = FedAvgServer()

@@ -75,6 +75,7 @@ class FedMSServer(FedAvgServer):
                 self.client_list[client_id].load_model_weights(aggregated_weights)
             if (round_id + 1) % self.args.test_gap == 0:
                 self.validate_and_test()
+            self.save_checkpoint(round_id)
 
 
 if __name__ == "__main__":
