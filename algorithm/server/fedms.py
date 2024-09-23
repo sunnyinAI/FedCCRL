@@ -1,6 +1,8 @@
 from argparse import ArgumentParser, Namespace
 from copy import deepcopy
+import os
 from pathlib import Path
+import pickle
 import sys
 
 import torch
@@ -10,6 +12,7 @@ sys.path.append(PROJECT_DIR.as_posix())
 from algorithm.server.fedavg import FedAvgServer, get_fedavg_argparser
 from algorithm.client.fedms import FedMSClient
 from data.dataset import FLDataset
+from utils.tools import local_time
 
 
 def get_fedms_argparser():
@@ -60,6 +63,7 @@ class FedMSServer(FedAvgServer):
 
         self.best_accuracy = 0
         for round_id in range(self.args.round):
+            self.round_id = round_id
             self.logger.log("=" * 20, f"Round {round_id}", "=" * 20)
             # generate style pool
             statistic_pool = self.generate_statistic_pool()
@@ -75,7 +79,22 @@ class FedMSServer(FedAvgServer):
                 self.client_list[client_id].load_model_weights(aggregated_weights)
             if (round_id + 1) % self.args.test_gap == 0:
                 self.validate_and_test()
-            self.save_checkpoint(round_id)
+
+    def validate_and_test(self):
+        self.classification_model.eval()
+        self.classification_model.to(self.device)
+        valid_acc = self.evaluate(self.validation_set)
+        self.logger.log(f"{local_time()}, Validation, Accuracy: {valid_acc:.2f}%")
+        test_acc = self.evaluate(self.test_set)
+        self.logger.log(f"{local_time()}, Test, Accuracy: {test_acc:.2f}%")
+        self.classification_model.to(torch.device("cpu"))
+
+        if test_acc > self.best_accuracy:
+            self.save_checkpoint(self.round_id)
+            self.best_accuracy = test_acc
+            test_accuracy_file = os.path.join(self.path2output_dir, "test_accuracy.pkl")
+            with open(test_accuracy_file, "wb") as f:
+                pickle.dump(test_acc, f)
 
 
 if __name__ == "__main__":
