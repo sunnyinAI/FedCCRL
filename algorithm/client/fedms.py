@@ -20,17 +20,20 @@ class FedMSClient(FedAvgClient):
     def compute_statistic(self):
         self.move2new_device()
         local_statistic_pool = {"mean": [], "std": []}
-        total_batches = len(self.train_loader)
-        assert total_batches * self.args.upload_ratio > 1
+        num2upload = int(len(self.train_loader) * self.args.upload_ratio)
+        batches = int(num2upload / self.args.batch_size)
+        left_num = num2upload % self.args.batch_size
         for enu, (data, target) in enumerate(self.train_loader):
-            if enu + 1 >= total_batches * self.args.upload_ratio:
-                break
             mean = torch.mean(data, dim=(2, 3), keepdim=True)
             var = torch.var(data, dim=(2, 3), keepdim=True)
             std: torch.Tensor = (var + self.args.epsilon).sqrt()
-            local_statistic_pool["mean"].append(mean)
-            local_statistic_pool["std"].append(std)
-
+            if enu != batches:
+                local_statistic_pool["mean"].append(mean)
+                local_statistic_pool["std"].append(std)
+            else:
+                local_statistic_pool["mean"].append(mean[:left_num])
+                local_statistic_pool["std"].append(std[:left_num])
+                break
         local_statistic_pool["mean"] = torch.cat(
             local_statistic_pool["mean"], dim=0
         ).to(torch.device("cpu"))

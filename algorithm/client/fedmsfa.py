@@ -74,10 +74,16 @@ class FedMSFAClient(FedMSClient):
                         info_nce_loss = (
                             # self.InfoNCE(mix_feature[0], mix_feature[1])
                             self.supervised_contrastive_loss(
-                                mix_feature[0], feature_1, target
+                                mix_feature[0],
+                                feature_1,
+                                target,
+                                temperature=self.args.t,
                             )
                             + self.supervised_contrastive_loss(
-                                mix_feature[1], feature_1, target
+                                mix_feature[1],
+                                feature_1,
+                                target,
+                                temperature=self.args.t,
                             )
                         ) / 2
                         loss += self.args.delta * info_nce_loss
@@ -132,7 +138,7 @@ class FedMSFAClient(FedMSClient):
         infonce = 0.5 * (g_xy.mean() + g_yx.mean())
         return infonce
 
-    def supervised_contrastive_loss(self, x, y, label, temperature=0.1):
+    def supervised_contrastive_loss(self, x, y, label, temperature):
         x_norm = torch.norm(x, dim=1, keepdim=True)
         y_norm = torch.norm(y, dim=1, keepdim=True)
         x = x / x_norm

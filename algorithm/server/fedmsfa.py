@@ -31,7 +31,7 @@ def get_fedmsfa_argparser():
         "--fa_method",
         type=str,
         choices=["mse", "mi"],
-        default="mi",
+        default="mse",
         help="feature alignment method. 'mi' represents mutual information",
     )
     parser.add_argument("--align2center", type=bool, default=False)
@@ -42,6 +42,7 @@ def get_fedmsfa_argparser():
         default="diff_label",
     )
     parser.add_argument("--AugMix", type=bool, default=True)
+    parser.add_argument("-t", type=float, default=0.1, help="temperature")
     return parser
 
 

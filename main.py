@@ -63,8 +63,15 @@ def get_output_dir(args):
         output_dir = f"eta_{args.eta}"
     elif algo == "CCST":
         output_dir = f"k_{args.k}_upload_ratio_{args.upload_ratio}"
+    elif algo == "FedSR":
+        output_dir = f"L2R_{args.L2R_coeff}_CMI_{args.CMI_coeff}"
+    elif algo == "FedIIR":
+        output_dir = f"gamma_{args.gamma}_ema_{args.ema}"
+    elif algo == "FedProx":
+        output_dir = f"mu_{args.mu}"
     else:
         output_dir = begin_time
+    output_dir = output_dir + "_" + begin_time
     return output_dir
 
 
@@ -88,13 +95,21 @@ def process(test_domain):
     # 1. partition data
     data_args = get_partition_arguments()
     data_args.test_domain = test_domain
-    dir_name = os.path.join(begin_time, test_domain)
+    dir_name = (
+        os.path.join(begin_time, test_domain)
+        if resume_dataset_dir is None
+        else os.path.join(resume_dataset_dir, test_domain)
+    )
     data_args.directory_name = dir_name
     partition_and_statistic(deepcopy(data_args))
     # 2. train
     fl_args, _ = algo2argparser[algo].parse_known_args()
     fl_args.partition_info_dir = dir_name
-    fl_args.output_dir = get_output_dir(fl_args)
+    fl_args.output_dir = (
+        get_output_dir(fl_args) if resume_run_log_dir is None else resume_run_log_dir
+    )
+    if "domainnet" in fl_args.dataset:
+        fl_args.batch_size = 128
     if algo == "FedADG":
         fl_args.optimizer = "sgd"
     server = algo2server[algo](args=deepcopy(fl_args))
@@ -108,7 +123,7 @@ def get_table():
         "out",
         algo,
         dataset,
-        get_output_dir(args),
+        get_output_dir(args) if resume_run_log_dir is None else resume_run_log_dir,
     )
     for domain in domains:
         with open(os.path.join(path2dir, domain, "test_accuracy.pkl"), "rb") as f:
@@ -131,9 +146,12 @@ if __name__ == "__main__":
         except:
             index = sys.argv.index("--dataset")
         dataset = sys.argv[index + 1]
-        assert dataset in ["pacs", "vlcs", "office_home"]
+        assert dataset in ALL_DOMAINS.keys()
     else:
         raise ValueError("Please specify the dataset.")
+    resume_run_log_dir = None
+    resume_dataset_dir = None
+
     domains = ALL_DOMAINS[dataset]
     multiprocess = True
     if multiprocess:

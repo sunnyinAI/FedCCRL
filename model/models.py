@@ -17,6 +17,8 @@ NUM_CLASSES = {
     "pacs": 7,
     "vlcs": 5,
     "office_home": 65,
+    "domainnet": 345,
+    "minidomainnet": 126,
 }
 
 

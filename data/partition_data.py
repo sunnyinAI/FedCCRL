@@ -20,6 +20,8 @@ ALL_DOMAINS = {
     "pacs": ["photo", "art_painting", "cartoon", "sketch"],
     "vlcs": ["caltech", "labelme", "sun", "voc"],
     "office_home": ["art", "clipart", "product", "realworld"],
+    "domainnet": ["clipart", "infograph", "painting", "quickdraw", "real", "sketch"],
+    "minidomainnet": ["clipart", "painting", "real", "sketch"],
 }
 
 
@@ -31,10 +33,12 @@ def get_partition_arguments():
         "-d",
         "--dataset",
         type=str,
-        default="office_home",
-        choices=["pacs", "vlcs", "office_home"],
+        default="minidomainnet",
+        choices=["pacs", "vlcs", "office_home", "domainnet", "minidomainnet"],
     )
-    parser.add_argument("--test_domain", type=str, default="art", help="Test domain")
+    parser.add_argument(
+        "--test_domain", type=str, default="clipart", help="Test domain"
+    )
     parser.add_argument(
         "--seed", type=int, default=42, help="Random seed for reproducibility"
     )
@@ -82,21 +86,43 @@ def partition_data(args) -> Dict[Union[int, str], Dict[str, List]]:
                 'domain': list of domains of each sample
     """
     domains = ALL_DOMAINS[args.dataset]
-    domain_paths = {
-        domain: os.path.join(PROJECT_DIR, f"data/{args.dataset}/raw", domain)
-        for domain in domains
-    }
+
     test_domain = args.test_domain
     client_domains = [domain for domain in domains if domain != test_domain]
-    num_clients = args.num_clients_per_domain * len(client_domains)
+    # num_clients = args.num_clients_per_domain * len(client_domains)
     all_files = defaultdict(list)
     all_labels = defaultdict(list)
-    for domain, path in domain_paths.items():
-        for cls in os.listdir(path):
-            cls_path = os.path.join(path, cls)
-            files = os.listdir(cls_path)
-            all_files[domain].extend([os.path.join(cls_path, f) for f in files])
-            all_labels[domain].extend([cls] * len(files))
+    if args.dataset != "minidomainnet":
+        domain_paths = {
+            domain: os.path.join(PROJECT_DIR, f"data/{args.dataset}/raw", domain)
+            for domain in domains
+        }
+        for domain, path in domain_paths.items():
+            for cls in os.listdir(path):
+                cls_path = os.path.join(path, cls)
+                files = os.listdir(cls_path)
+                all_files[domain].extend([os.path.join(cls_path, f) for f in files])
+                all_labels[domain].extend([cls] * len(files))
+    else:
+        domain_paths = {
+            domain: os.path.join(PROJECT_DIR, f"data/domainnet/raw", domain)
+            for domain in domains
+        }
+        for domain in domains:
+            for mod in ["train", "test"]:
+                path = os.path.join(
+                    CURRENT_DIR, args.dataset, "splits_mini", f"{domain}_{mod}.txt"
+                )
+                with open(path, "r") as f:
+                    split = f.readlines()
+                    files = [line.split(" ")[0] for line in split]
+                    label = [line.split(" ")[1][:-1] for line in split]
+                    files_path = [
+                        os.path.join(domain_paths[domain], f.split("/", 1)[1])
+                        for f in files
+                    ]
+                    all_files[domain].extend(files_path)
+                    all_labels[domain].extend(label)
 
     domain_distribution = heterogeneity(args, client_domains)
     # partition training data
@@ -177,21 +203,39 @@ def client_statistics(client_data) -> Dict[int, Dict[str, Dict[str, int]]]:
 def dataset_statistics(args):
     stats = {"domain": {}, "label": {}}
     domains = ALL_DOMAINS[args.dataset]
-    domain_paths = {
-        domain: os.path.join(PROJECT_DIR, f"data/{args.dataset}/raw", domain)
-        for domain in domains
-    }
-    for domain, path in domain_paths.items():
-        labels = os.listdir(path)
-        num_samples = 0
-        for label in labels:
-            label_dir_path = os.path.join(domain_paths[domain], label)
-            files = os.listdir(label_dir_path)
-            num_files = len(files)
-            stats["label"][label] = stats["label"].get(label, 0) + num_files
-            num_samples += num_files
-        stats["domain"][domain] = num_samples
+    if args.dataset != "minidomainnet":
 
+        domain_paths = {
+            domain: os.path.join(PROJECT_DIR, f"data/{args.dataset}/raw", domain)
+            for domain in domains
+        }
+        for domain, path in domain_paths.items():
+            labels = os.listdir(path)
+            num_samples = 0
+            for label in labels:
+                label_dir_path = os.path.join(domain_paths[domain], label)
+                files = os.listdir(label_dir_path)
+                num_files = len(files)
+                stats["label"][label] = stats["label"].get(label, 0) + num_files
+                num_samples += num_files
+            stats["domain"][domain] = num_samples
+    else:
+        domain_paths = {
+            domain: os.path.join(PROJECT_DIR, f"data/domainnet/raw", domain)
+            for domain in domains
+        }
+        for domain in domains:
+            for mod in ["train", "test"]:
+                path = os.path.join(
+                    CURRENT_DIR, args.dataset, "splits_mini", f"{domain}_{mod}.txt"
+                )
+                with open(path, "r") as f:
+                    split = f.readlines()
+                    for line in split:
+                        file_path, label = line.split(" ")
+                        label = label[:-1]
+                        stats["label"][label] = stats["label"].get(label, 0) + 1
+                        stats["domain"][domain] = stats["domain"].get(domain, 0) + 1
     return stats
 
 
