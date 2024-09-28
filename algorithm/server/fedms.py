@@ -3,6 +3,7 @@ from copy import deepcopy
 import os
 from pathlib import Path
 import pickle
+import random
 import sys
 
 import torch
@@ -19,7 +20,7 @@ def get_fedms_argparser():
     parser = get_fedavg_argparser()
     parser.add_argument("--mixstyle_alpha", type=float, default=0.1)
     parser.add_argument("--epsilon", type=float, default=1e-6)
-    parser.add_argument("--upload_ratio", type=float, default=0.5)
+    parser.add_argument("--upload_ratio", type=float, default=0.1)
     parser.add_argument("--p", type=float, default=1)
     parser.add_argument(
         "--eta", type=float, default=0.001, help="the hyper-parameter for JS divergence"
@@ -96,7 +97,26 @@ class FedMSServer(FedAvgServer):
             with open(test_accuracy_file, "wb") as f:
                 pickle.dump(test_acc, f)
 
+    def visualize_augmentation_effect(
+        self,
+    ):
+        statistic_pool = self.generate_statistic_pool()
+        for client_id in range(self.num_client):
+            self.client_list[client_id].download_statistic_pool(
+                deepcopy(statistic_pool)
+            )
+        path2save = os.path.join(PROJECT_DIR, "image", "augmentation", local_time())
+        if not os.path.exists(path2save):
+            os.makedirs(path2save)
+        random.seed(None)
+        client_id = random.randint(0, self.num_client - 1)
+        self.client_list[client_id].visualize_augmentation_effect(path2save)
+
+    # def draw_feature_distribution():
+
 
 if __name__ == "__main__":
     server = FedMSServer()
-    server.process_classification()
+
+    # server.process_classification()
+    server.visualize_augmentation_effect()

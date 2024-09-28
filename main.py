@@ -12,8 +12,8 @@ from rich.console import Console
 import torch
 from multiprocessing import cpu_count, Pool
 
-PROJECT_DIR = Path(__file__).parent.parent.parent.absolute()
-sys.path.append(PROJECT_DIR.as_posix())
+# PROJECT_DIR = Path(__file__).parent.parent.parent.absolute()
+# sys.path.append(PROJECT_DIR.as_posix())
 
 from data.partition_data import (
     partition_and_statistic,
@@ -57,7 +57,9 @@ algo2argparser = {
 
 
 def get_output_dir(args):
-    if algo == "FedMSFA":
+    if algo in ["FedAvg", "GA", "FedADG"]:
+        return begin_time
+    elif algo == "FedMSFA":
         output_dir = f"eta_{args.eta}_delta_{args.delta}"
     elif algo == "FedMS":
         output_dir = f"eta_{args.eta}"
@@ -69,8 +71,6 @@ def get_output_dir(args):
         output_dir = f"gamma_{args.gamma}_ema_{args.ema}"
     elif algo == "FedProx":
         output_dir = f"mu_{args.mu}"
-    else:
-        output_dir = begin_time
     output_dir = output_dir + "_" + begin_time
     return output_dir
 

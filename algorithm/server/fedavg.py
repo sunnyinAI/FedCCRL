@@ -5,8 +5,12 @@ import sys
 from argparse import Namespace, ArgumentParser
 import pickle
 from typing import Dict, List, OrderedDict
+import numpy as np
 from rich.console import Console
 import torch
+import matplotlib.pyplot as plt
+from sklearn.manifold import TSNE
+
 
 PROJECT_DIR = Path(__file__).parent.parent.parent.absolute()
 OUT_DIR = os.path.join(PROJECT_DIR, "out")
@@ -23,6 +27,7 @@ from model.models import get_model_arch
 from data.partition_data import ALL_DOMAINS
 from data.dataset import FLDataset
 from algorithm.client.fedavg import FedAvgClient
+from matplotlib.lines import Line2D
 
 
 def get_fedavg_argparser():
@@ -32,7 +37,7 @@ def get_fedavg_argparser():
         "--dataset",
         type=str,
         choices=["pacs", "vlcs", "office_home", "domainnet", "minidomainnet"],
-        default="minidomainnet",
+        default="pacs",
     )
     parser.add_argument(
         "--partition_info_dir",
@@ -177,6 +182,7 @@ class FedAvgServer:
             )
         self.best_accuracy = 0
         for round_id in range(self.args.round):
+            self.round_id = round_id
             self.logger.log("=" * 20, f"Round {round_id}", "=" * 20)
             for client_id in range(self.num_client):
                 self.client_list[client_id].train()
@@ -198,6 +204,8 @@ class FedAvgServer:
         self.classification_model.to(torch.device("cpu"))
 
         if test_acc > self.best_accuracy:
+            if self.algo == "FedAvg":
+                self.save_checkpoint(self.round_id)
             self.best_accuracy = test_acc
             test_accuracy_file = os.path.join(self.path2output_dir, "test_accuracy.pkl")
             with open(test_accuracy_file, "wb") as f:
@@ -225,6 +233,63 @@ class FedAvgServer:
         checkpoint = {"model": self.classification_model.state_dict(), "round": round}
         checkpoint_file = os.path.join(self.path2output_dir, "checkpoint.pth")
         torch.save(checkpoint, checkpoint_file)
+
+    def resume_checkpoint(self, path2checkpoint):
+        checkpoint = torch.load(
+            os.path.join(PROJECT_DIR, path2checkpoint), weights_only=True
+        )
+        self.classification_model.load_state_dict(checkpoint["model"])
+
+    def draw_feature_distribution(self, algo=None):
+        self.classification_model.eval()
+        self.classification_model.to(self.device)
+
+        features = []
+        labels = []
+
+        dataloader = torch.utils.data.DataLoader(
+            self.test_set, batch_size=self.args.batch_size
+        )
+        with torch.no_grad():
+            for batch in dataloader:
+                data, target = batch
+                data = data.to(self.device)
+                feature = self.classification_model.base(data)
+                features.append(feature.cpu().numpy())
+                labels.append(target.cpu().numpy())
+
+        features = np.concatenate(features, axis=0)
+        labels = np.concatenate(labels, axis=0)
+
+        tsne = TSNE(n_components=2, random_state=self.args.seed)
+        tsne_results = tsne.fit_transform(features)
+        plt.figure(figsize=(10, 8))
+        scatter = plt.scatter(
+            tsne_results[:, 0],
+            tsne_results[:, 1],
+            c=labels,
+            cmap="viridis",
+            alpha=0.5,
+        )
+        unique_labels = np.unique(labels)
+        for label in unique_labels:
+            plt.scatter([], [], color=scatter.cmap(scatter.norm(label)), label=label)
+        plt.legend(title="Labels", loc="best")
+        plt.gca().set_xticks([])
+        plt.gca().set_yticks([])
+        # plt.axis("off")
+        path2save = os.path.join(PROJECT_DIR, "image", "feature_dis", local_time())
+        if not os.path.exists(path2save):
+            os.makedirs(path2save)
+        plt.savefig(
+            os.path.join(
+                path2save,
+                f"{self.algo if algo is None else algo}_{self.args.test_domain}_{local_time()}.png",
+            ),
+            bbox_inches="tight",
+            pad_inches=0.1,
+        )
+        plt.close()
 
 
 if __name__ == "__main__":

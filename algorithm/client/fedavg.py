@@ -88,7 +88,6 @@ class FedAvgClient:
         average_loss = total_loss / len(self.train_loader)
         self.classification_model.to(torch.device("cpu"))
         torch.cuda.empty_cache()
-
         self.logger.log(
             f"{local_time()}, Client {self.client_id}, Avg Loss: {average_loss:.4f}"
         )

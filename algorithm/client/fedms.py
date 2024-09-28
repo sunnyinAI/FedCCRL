@@ -7,6 +7,7 @@ from algorithm.client.fedavg import FedAvgClient
 from utils.optimizers_shcedulers import get_optimizer
 from utils.tools import trainable_params, get_best_device, local_time
 from model.models import MixStyle
+import matplotlib.pyplot as plt
 
 
 class FedMSClient(FedAvgClient):
@@ -20,7 +21,7 @@ class FedMSClient(FedAvgClient):
     def compute_statistic(self):
         self.move2new_device()
         local_statistic_pool = {"mean": [], "std": []}
-        num2upload = int(len(self.train_loader) * self.args.upload_ratio)
+        num2upload = int(len(self.train_loader.dataset) * self.args.upload_ratio)
         batches = int(num2upload / self.args.batch_size)
         left_num = num2upload % self.args.batch_size
         for enu, (data, target) in enumerate(self.train_loader):
@@ -77,7 +78,7 @@ class FedMSClient(FedAvgClient):
                     mu2, std2 = self.sample_statistic(len(data))
                     generated_data = self.MixStyle(data, mu2, std2)
                     if self.args.AugMix:
-                        generated_data = self.AugMIxAugmentation(generated_data)
+                        generated_data = self.AugMixAugmentation(generated_data)
                     pred = self.classification_model(generated_data)
                     loss += criterion(pred, target)
                     if self.args.eta > 0:
@@ -109,7 +110,7 @@ class FedMSClient(FedAvgClient):
         std = torch.as_tensor(std).reshape(1, -1, 1, 1).to(tensor.device)
         return tensor * std + mean
 
-    def AugMIxAugmentation(self, input_images):
+    def AugMixAugmentation(self, input_images):
         mean = torch.tensor([0.485, 0.456, 0.406]).to(input_images.device)
         std = torch.tensor([0.229, 0.224, 0.225]).to(input_images.device)
         input_images = self.denormalize(input_images, mean, std)
@@ -121,3 +122,38 @@ class FedMSClient(FedAvgClient):
         augmixed_images = augmixed_images.float().div(255.0)
         augmixed_images = transforms.Normalize(mean, std)(augmixed_images)
         return augmixed_images
+
+    def scale2unit(self, tensor):
+        return (tensor - tensor.min()) / (tensor.max() - tensor.min())
+
+    def visualize_augmentation_effect(self, path2dir):
+        data_iter = iter(self.train_loader)
+        data, _ = next(data_iter)
+        random.seed(None)
+        random_index = random.randint(0, len(data) - 1)
+        sample_image = data[random_index]
+        mu2, std2 = self.sample_statistic(1)
+        mixstyled_image = self.MixStyle(sample_image.unsqueeze(0), mu2, std2).squeeze(0)
+        mixstyled_image = self.scale2unit(mixstyled_image)
+        augmixed_image = self.AugMixAugmentation(mixstyled_image.unsqueeze(0)).squeeze(
+            0
+        )
+        sample_image = self.scale2unit(sample_image)
+        mixstyled_image = self.scale2unit(mixstyled_image)
+        augmixed_image = self.scale2unit(augmixed_image)
+
+        original_image_path = f"{path2dir}/original_image.png"
+        plt.imsave(
+            original_image_path,
+            sample_image.permute(1, 2, 0).cpu().numpy(),
+        )
+        mixstyle_image_path = f"{path2dir}/mixstyle_image.png"
+        plt.imsave(
+            mixstyle_image_path,
+            mixstyled_image.permute(1, 2, 0).cpu().numpy(),
+        )
+        augmix_image_path = f"{path2dir}/augmix_image.png"
+        plt.imsave(
+            augmix_image_path,
+            augmixed_image.permute(1, 2, 0).cpu().numpy(),
+        )

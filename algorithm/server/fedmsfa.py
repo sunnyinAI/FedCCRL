@@ -16,7 +16,7 @@ def get_fedmsfa_argparser():
     parser = get_fedavg_argparser()
     parser.add_argument("--mixstyle_alpha", type=float, default=0.1)
     parser.add_argument("--epsilon", type=float, default=1e-6)
-    parser.add_argument("--upload_ratio", type=float, default=0.5)
+    parser.add_argument("--upload_ratio", type=float, default=0.1)
     parser.add_argument("--p", type=float, default=1)
     parser.add_argument(
         "--eta", type=float, default=0.0, help="the hyper-parameter for JS divergence"
@@ -31,7 +31,7 @@ def get_fedmsfa_argparser():
         "--fa_method",
         type=str,
         choices=["mse", "mi"],
-        default="mse",
+        default="mi",
         help="feature alignment method. 'mi' represents mutual information",
     )
     parser.add_argument("--align2center", type=bool, default=False)
@@ -39,7 +39,7 @@ def get_fedmsfa_argparser():
         "--negative_sample",
         type=str,
         choices=["all", "diff_label"],
-        default="diff_label",
+        default="all",
     )
     parser.add_argument("--AugMix", type=bool, default=True)
     parser.add_argument("-t", type=float, default=0.1, help="temperature")

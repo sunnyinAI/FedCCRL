@@ -33,12 +33,10 @@ def get_partition_arguments():
         "-d",
         "--dataset",
         type=str,
-        default="minidomainnet",
+        default="pacs",
         choices=["pacs", "vlcs", "office_home", "domainnet", "minidomainnet"],
     )
-    parser.add_argument(
-        "--test_domain", type=str, default="clipart", help="Test domain"
-    )
+    parser.add_argument("--test_domain", type=str, default="sketch", help="Test domain")
     parser.add_argument(
         "--seed", type=int, default=42, help="Random seed for reproducibility"
     )

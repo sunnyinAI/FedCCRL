@@ -34,7 +34,7 @@ class FedMSFAClient(FedMSClient):
                     mu2, std2 = self.sample_statistic(len(data))
                     generated_data = self.MixStyle(data, mu2, std2)
                     if self.args.AugMix:
-                        generated_data = self.AugMIxAugmentation(generated_data)
+                        generated_data = self.AugMixAugmentation(generated_data)
                     feature = self.classification_model.base(generated_data)
                     pred = self.classification_model.classifier(feature)
                     loss += criterion(pred, target)
