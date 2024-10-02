@@ -204,7 +204,7 @@ class FedAvgServer:
         self.classification_model.to(torch.device("cpu"))
 
         if test_acc > self.best_accuracy:
-            if self.algo == "FedAvg":
+            if self.algo == "FedAvg" or self.algo == "CCST":
                 self.save_checkpoint(self.round_id)
             self.best_accuracy = test_acc
             test_accuracy_file = os.path.join(self.path2output_dir, "test_accuracy.pkl")

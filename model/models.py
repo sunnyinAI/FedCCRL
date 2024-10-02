@@ -257,7 +257,7 @@ def get_FedADG_models(classification_model, dataset, rp_size=1024):
 
 
 class MixStyle(nn.Module):
-    def __init__(self, p=0.5, alpha=0.1, eps=1e-6):
+    def __init__(self, p=1.0, alpha=0.1, eps=1e-6):
         super(MixStyle, self).__init__()
         self.p = p
         self.beta = torch.distributions.Beta(torch.tensor(alpha), torch.tensor(alpha))

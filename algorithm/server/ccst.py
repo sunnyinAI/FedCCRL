@@ -86,6 +86,7 @@ class CCSTServer(FedAvgServer):
 
             aggregated_weights = self.aggregate_model()
             self.classification_model.load_state_dict(aggregated_weights)
+            self.round_id = round_id
             for client_id in range(self.num_client):
                 self.client_list[client_id].load_model_weights(aggregated_weights)
             if (round_id + 1) % self.args.test_gap == 0:
