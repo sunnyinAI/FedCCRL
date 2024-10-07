@@ -29,7 +29,7 @@ from algorithm.server.fedadg import FedADGServer, get_fedadg_argparser
 from algorithm.server.fedms import FedMSServer, get_fedms_argparser
 from algorithm.server.fedmsfa import FedMSFAServer, get_fedmsfa_argparser
 from algorithm.server.ccst import CCSTServer, get_ccst_argparser
-
+from algorithm.server.fedccrl import FedCCRLServer, get_fedccrl_argparser
 from utils.tools import local_time
 
 algo2server = {
@@ -42,6 +42,7 @@ algo2server = {
     "FedMS": FedMSServer,
     "FedMSFA": FedMSFAServer,
     "CCST": CCSTServer,
+    "FedCCRL": FedCCRLServer,
 }
 algo2argparser = {
     "FedAvg": get_fedavg_argparser(),
@@ -53,6 +54,7 @@ algo2argparser = {
     "FedMS": get_fedms_argparser(),
     "FedMSFA": get_fedmsfa_argparser(),
     "CCST": get_ccst_argparser(),
+    "FedCCRL": get_fedccrl_argparser(),
 }
 
 
@@ -93,15 +95,14 @@ def get_main_argparser():
 def process(test_domain):
     time.sleep(np.random.randint(0, 5))
     # 1. partition data
-    data_args = get_partition_arguments()
-    data_args.test_domain = test_domain
-    dir_name = (
-        os.path.join(begin_time, test_domain)
-        if resume_dataset_dir is None
-        else os.path.join(resume_dataset_dir, test_domain)
-    )
-    data_args.directory_name = dir_name
-    partition_and_statistic(deepcopy(data_args))
+    if resume_dataset_dir is None:
+        data_args = get_partition_arguments()
+        data_args.test_domain = test_domain
+        dir_name = os.path.join(begin_time, test_domain)
+        data_args.directory_name = dir_name
+        partition_and_statistic(deepcopy(data_args))
+    else:
+        dir_name = os.path.join(resume_dataset_dir, test_domain)
     # 2. train
     fl_args, _ = algo2argparser[algo].parse_known_args()
     fl_args.partition_info_dir = dir_name
@@ -149,6 +150,8 @@ if __name__ == "__main__":
         assert dataset in ALL_DOMAINS.keys()
     else:
         raise ValueError("Please specify the dataset.")
+    # resume_run_log_dir = "eta_1.0_delta_0.1_2024-09-29-16:24:59"
+    # resume_dataset_dir = "2024-09-29-16:24:59"
     resume_run_log_dir = None
     resume_dataset_dir = None
 
