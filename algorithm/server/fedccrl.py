@@ -100,12 +100,12 @@ class FedCCRLServer(FedAvgServer):
         self.logger.log(f"{local_time()}, Test, Accuracy: {test_acc:.2f}%")
         self.classification_model.to(torch.device("cpu"))
 
-        if test_acc > self.best_accuracy:
-            self.save_checkpoint(self.round_id)
-            self.best_accuracy = test_acc
-            test_accuracy_file = os.path.join(self.path2output_dir, "test_accuracy.pkl")
-            with open(test_accuracy_file, "wb") as f:
-                pickle.dump(test_acc, f)
+        # if test_acc > self.best_accuracy:
+        self.save_checkpoint(self.round_id)
+        self.best_accuracy = test_acc
+        test_accuracy_file = os.path.join(self.path2output_dir, "test_accuracy.pkl")
+        with open(test_accuracy_file, "wb") as f:
+            pickle.dump(test_acc, f)
 
     def visualize_augmentation_effect(
         self,

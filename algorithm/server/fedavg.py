@@ -152,7 +152,9 @@ class FedAvgServer:
 
     def get_agg_weight(self) -> List[float]:
         # Get the weight of each client at the time of aggregation
-        num_data_each_client = [len(client.train_loader) for client in self.client_list]
+        num_data_each_client = [
+            len(client.train_loader.dataset) for client in self.client_list
+        ]
         num_total_data = sum(num_data_each_client)
         weight_list = [num_data / num_total_data for num_data in num_data_each_client]
         return weight_list
@@ -202,14 +204,12 @@ class FedAvgServer:
         test_acc = self.evaluate(self.test_set)
         self.logger.log(f"{local_time()}, Test, Accuracy: {test_acc:.2f}%")
         self.classification_model.to(torch.device("cpu"))
-
-        if test_acc > self.best_accuracy:
-            if self.algo == "FedAvg" or self.algo == "CCST":
-                self.save_checkpoint(self.round_id)
-            self.best_accuracy = test_acc
-            test_accuracy_file = os.path.join(self.path2output_dir, "test_accuracy.pkl")
-            with open(test_accuracy_file, "wb") as f:
-                pickle.dump(test_acc, f)
+        if self.algo == "FedAvg" or self.algo == "CCST":
+            self.save_checkpoint(self.round_id)
+        self.best_accuracy = test_acc
+        test_accuracy_file = os.path.join(self.path2output_dir, "test_accuracy.pkl")
+        with open(test_accuracy_file, "wb") as f:
+            pickle.dump(test_acc, f)
 
     def evaluate(self, dataset) -> float:
         dataloader = torch.utils.data.DataLoader(
