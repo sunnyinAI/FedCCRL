@@ -1,0 +1,7 @@
+matplotlib
+pandas
+numpy
+rich
+torch
+torchvision
+pytorch-grad-cam

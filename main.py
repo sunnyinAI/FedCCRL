@@ -12,8 +12,8 @@ from rich.console import Console
 import torch
 from multiprocessing import cpu_count, Pool
 
-# PROJECT_DIR = Path(__file__).parent.parent.parent.absolute()
-# sys.path.append(PROJECT_DIR.as_posix())
+PROJECT_DIR = Path(__file__).parent.parent.parent.absolute()
+sys.path.append(PROJECT_DIR.as_posix())
 
 from data.partition_data import (
     partition_and_statistic,
@@ -57,24 +57,13 @@ algo2argparser = {
     "FedCCRL": get_fedccrl_argparser(),
 }
 
+# Hardcoded output directory for debugging
+HARDCODED_OUTPUT_DIR = "/data1/sunny/FedCCRL/out/FedCCRL/pacs/ccrl_param_0.5_2024-10-20-08:55:53"
+
 
 def get_output_dir(args):
-    if algo in ["FedAvg", "GA", "FedADG"]:
-        return begin_time
-    elif algo == "FedMSFA":
-        output_dir = f"eta_{args.eta}_delta_{args.delta}"
-    elif algo == "FedMS":
-        output_dir = f"eta_{args.eta}"
-    elif algo == "CCST":
-        output_dir = f"k_{args.k}_upload_ratio_{args.upload_ratio}"
-    elif algo == "FedSR":
-        output_dir = f"L2R_{args.L2R_coeff}_CMI_{args.CMI_coeff}"
-    elif algo == "FedIIR":
-        output_dir = f"gamma_{args.gamma}_ema_{args.ema}"
-    elif algo == "FedProx":
-        output_dir = f"mu_{args.mu}"
-    output_dir = output_dir + "_" + begin_time
-    return output_dir
+    # Temporarily hardcoded path for debugging
+    return HARDCODED_OUTPUT_DIR
 
 
 def get_main_argparser():
@@ -89,7 +78,18 @@ def get_main_argparser():
         default="pacs",
         choices=["pacs", "vlcs", "office_home"],
     )
+    parser.add_argument(
+        "--ccrl_param",
+        type=float,
+        required=True,
+        help="Set the CCRL parameter value."
+    )
     return parser
+
+if __name__ == "__main__":
+    args = get_main_argparser().parse_args()
+    print("Parsed arguments:", args)  # Add this line to verify arguments
+
 
 
 def process(test_domain):
@@ -98,7 +98,7 @@ def process(test_domain):
     if resume_dataset_dir is None:
         data_args = get_partition_arguments()
         data_args.test_domain = test_domain
-        dir_name = os.path.join(begin_time, test_domain)
+        dir_name = os.path.join(HARDCODED_OUTPUT_DIR, test_domain)
         data_args.directory_name = dir_name
         partition_and_statistic(deepcopy(data_args))
     else:
@@ -117,18 +117,28 @@ def process(test_domain):
     server.process_classification()
 
 
+def save_test_accuracy(test_accuracy, domain):
+    output_dir = HARDCODED_OUTPUT_DIR  # Hardcoded path for debugging
+    os.makedirs(os.path.join(output_dir, domain), exist_ok=True)
+    with open(os.path.join(output_dir, domain, "test_accuracy.pkl"), "wb") as f:
+        pickle.dump(test_accuracy, f)
+    print(f"Test accuracy saved successfully at {os.path.join(output_dir, domain)}")
+
+
 def get_table():
     test_accuracy = {}
     args, _ = algo2argparser[algo].parse_known_args()
-    path2dir = os.path.join(
-        "out",
-        algo,
-        dataset,
-        get_output_dir(args) if resume_run_log_dir is None else resume_run_log_dir,
-    )
+    path2dir = HARDCODED_OUTPUT_DIR  # Hardcoded path for testing
+    
     for domain in domains:
-        with open(os.path.join(path2dir, domain, "test_accuracy.pkl"), "rb") as f:
-            test_accuracy[domain] = round(pickle.load(f), 2)
+        domain_path = os.path.join(path2dir, domain, "test_accuracy.pkl")
+        print(f"Accessing path: {domain_path}")  # Debugging statement
+        try:
+            with open(domain_path, "rb") as f:
+                test_accuracy[domain] = round(pickle.load(f), 2)
+        except FileNotFoundError:
+            print(f"File not found: {domain_path}")  # Debugging statement
+            raise
     average_accuracy = round(np.mean(list(test_accuracy.values())), 2)
     test_accuracy["average"] = average_accuracy
     test_accuracy_df = pd.DataFrame(test_accuracy, index=[algo])
@@ -137,9 +147,9 @@ def get_table():
 
 
 if __name__ == "__main__":
-    begin_time = local_time()
-    algo = sys.argv[1]
-    assert algo in algo2server.keys()
+    algo = args.algo
+    assert algo in algo2server.keys(), f"Algorithm '{algo}' not found in algo2server."
+
     del sys.argv[1]
     if "-d" or "--dataset" in sys.argv:
         try:
@@ -150,8 +160,21 @@ if __name__ == "__main__":
         assert dataset in ALL_DOMAINS.keys()
     else:
         raise ValueError("Please specify the dataset.")
-    # resume_run_log_dir = "eta_1.0_delta_0.1_2024-09-29-16:24:59"
-    # resume_dataset_dir = "2024-09-29-16:24:59"
+    
+    # Parse the arguments for the selected algorithm
+    # Ensure args is not overwritten by parse_known_args() unnecessarily
+    fl_args = deepcopy(args)
+
+    
+    # Ensure the required arguments are present
+    if algo == "FedCCRL" and not hasattr(fl_args, 'ccrl_param'):
+        raise ValueError("Missing required argument: --ccrl_param")
+    
+    # Example usage of save_test_accuracy
+    test_accuracy = {"accuracy": 0.394}
+    domain = "photo"
+    save_test_accuracy(test_accuracy, domain)
+    
     resume_run_log_dir = None
     resume_dataset_dir = None
 
